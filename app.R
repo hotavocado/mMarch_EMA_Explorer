@@ -1,0 +1,5655 @@
+library(shiny)
+library(tidyverse)
+library(DT)
+library(grid)
+library(plyr)
+library(shinythemes)
+library(plotly)
+library(Hmisc)
+library(lazyeval)
+library(mosaic)
+library(testit)
+#options(warn = -1)
+
+
+
+
+#UI#############################################################################################
+
+##1a) Dataset upload ########################################################################################################
+
+ui <- navbarPage("mMARCH EMA Explorer", theme = shinytheme("spacelab"),
+                 
+                 tabPanel("Tutorial",
+                        fluidPage(
+                            tags$iframe(src = 'vignette.html', # put testdoc.html to /www
+                                        width = '100%', height = '800px', 
+                                        frameborder = 0, scrolling = 'auto')
+                        )
+                          
+                 ),
+                 
+                 tabPanel("Dataset",
+                          
+                          pageWithSidebar(
+                            
+                            headerPanel("Upload and Select Dataset"),
+                            
+                            sidebarPanel(width = 3, 
+                                         
+                                         h4('Select dataset:'),  
+                                         
+                                         selectInput("dataset", 
+                                                     label = NULL, 
+                                                     choices = c("Upload", "Example data"),
+                                                     selected = "Example data", multiple = FALSE,
+                                                     selectize = TRUE, width = NULL, size = NULL),
+                                         actionButton("go", "Select Dataset"),
+                                         
+                                         hr(), 
+                                         
+                                         #Upload file 1
+                                         fileInput("file1", "Upload main dataset",
+                                                   multiple = FALSE,
+                                                   accept = c("text/csv",
+                                                              "text/comma-separated-values,text/plain",
+                                                              ".csv")),
+                                         #Upload file 2
+                                         fileInput("file2", "Upload max-values data for compliance",
+                                                   multiple = FALSE,
+                                                   accept = c("text/csv",
+                                                              "text/comma-separated-values,text/plain",
+                                                              ".csv")),
+                                         
+                                         #Upload file 3
+                                         fileInput("file3", "Upload covariate dataset",
+                                                   multiple = FALSE,
+                                                   accept = c("text/csv",
+                                                              "text/comma-separated-values,text/plain",
+                                                              ".csv"))
+                                         
+                                         
+                            ),
+                            
+                            mainPanel(width = 9)
+                          )
+                        ),
+##2a) Compliance barplot input###########################################################################################################
+                 
+                 tabPanel("Compliance",
+                           
+                           pageWithSidebar(
+                            
+                           headerPanel("Visualizing EMA Compliance"),
+                           
+                           sidebarPanel(width = 2,
+                                        
+                                        h4('Adjust compliance criteria:'), 
+                                        
+                                        sliderInput("num", 
+                                                    label = "Threshold", value = 0.5, min = 0, max = 1), 
+                                        
+                                        hr(),
+                                        
+                                        conditionalPanel(condition = "input.conditionedPanels == 'Compliance Barplot'",
+                                        
+                                          h4('Barplot Options:'), 
+                                        
+                                          sliderInput("slider", 
+                                                      label = "View variables with frequency between:", 
+                                                      min = 0, max = 100, value = c(0,100)),
+                                        
+                                          selectInput("sort", 
+                                                      label = "Sort By:", 
+                                                      choices = list("Original Order"= 1, "Freq Perc" = 2, "Alphabetical" = 3), 
+                                                      selected = 1)
+                                        ),
+##2b) Compliance boxplot input #######################################################################################################
+                                        
+                                        conditionalPanel(condition = "input.conditionedPanels == 'Compliance Boxplot'",
+                                                        
+                                                         h4('Main Variable Options'),
+                                                         
+                                                         uiOutput("boxplotvar"),
+                                                         
+                                                         hr(),
+                                                         
+                                                         h4('Color Variable Options'), 
+                                                         
+                                                         uiOutput("boxplotcolor"),
+                                                         
+                                                         radioButtons("boxplotradio", "Quantiles:",
+                                                                      c("Auto", "On", "Off"), inline = T),
+                                                         
+                                                         sliderInput("boxplotntile", "Number of Quantiles:",
+                                                                     min = 2, max = 10,
+                                                                     value = 4, step = 1),
+                                                         hr(),
+                                                         
+                                                         h4('Random Variable Options'),
+                                                         
+                                                         checkboxGroupInput("boxplotrand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Color Var."), selected = c("Main Var.", "Color Var."),
+                                                                            inline = T, width = 300), 
+                                                         actionButton("boxplotrandom", "Random Vars"),
+                                                         
+                                                         hr(),
+                                                         
+                                                         actionButton("boxplot1", "Create/Update Plot")
+                                        
+                                        ),
+##2c) Compliance heatmap input################################################################################################
+
+                                        conditionalPanel(condition = "input.conditionedPanels == 'Compliance Heatmap'",
+                                                         
+                                                         h4('Main Variable Options'),
+                                                         
+                                                         uiOutput("heatmapvar"),
+                                                         
+                                                         hr(),
+                                                         
+                                                         h4('Ordering Variable Options'), 
+                                                         
+                                                         uiOutput("heatmaporder"),
+                                                         
+                                                         hr(),
+                                                         
+                                                         h4('Plot 2 Options'),
+                                                         
+                                                         selectInput("heatmapraw", 
+                                                                     label = "Data Type:", 
+                                                                     choices = c("raw", "subject normalized"),
+                                                                     selected = "raw"),
+                                                         
+                                                         selectInput("heatmapstrat", 
+                                                                     label = "Stratify By:", 
+                                                                     choices = c("timeofday", "weekday"),
+                                                                     selected = "timeofday"),
+                                                         
+                                                         hr(),
+                                                         
+                                                         h4('Random Variable Options'),
+                                                         
+                                                         checkboxGroupInput("heatmaprand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Order Var."), selected = c("Main Var.", "Order Var."),
+                                                                            inline = T, width = 300), 
+                                                         actionButton("heatmaprandom", "Random Vars"),
+                                                         
+                                                         hr(),
+                                                         
+                                                         actionButton("heatmap1", "Create/Update Plot")
+                                                         
+                                                         
+                                                         
+                                        )
+                                        
+                           ),
+
+##2e) Compliance boxplot output###################################################################################################
+
+                           mainPanel(
+                            
+                             
+                             
+                             
+                            
+                        
+                            tabsetPanel(id = "conditionedPanels", 
+                            
+                              tabPanel("Compliance Barplot", 
+                                                 
+                                fluidRow(
+                                                   
+                                         column(8,
+                                         plotOutput("Bar")),
+                                                   
+                                         column(1),
+                                                   
+                                         column(3,
+                                           h6("Quick summary:"),
+                                           verbatimTextOutput("median"),
+                                           h6("Get names:"),
+                                           verbatimTextOutput("namespalm"))
+                                                   
+                                                 )
+                                        ),
+                                        
+                              tabPanel("Compliance Boxplot", 
+
+                                fluidRow(
+                                           
+                                  column(3,
+                                         div(style = "height:25px"),
+                                         div(DT::dataTableOutput("table1"), style = "font-size: 75%; width: 75%")),
+                                 
+                                
+                                           
+                                  column(9,
+                                         div(style = "height:10px"),
+                                         verbatimTextOutput("boxplot_instr"),
+                                         plotlyOutput("boxplot", height = 500),
+                                         plotlyOutput("boxplotTOD", height = 300),
+                                         div(style = "height:25px"))
+                                           
+                                  #column(4,
+                                         #h6("Survey Question/Variable Description:"),
+                                         #verbatimTextOutput("palmq")),
+                                      
+                                  #column(4, 
+                                         #h6("Response:"),
+                                         #verbatimTextOutput("palmr"))
+                                )
+                              ),
+##2f) Compliance heatmat output################################################################################################
+
+                              tabPanel("Compliance Heatmap", 
+
+                                fluidRow(
+                                          
+                                  column(3,
+                                         div(style = "height:25px"),
+                                         div(DT::dataTableOutput("table2"), style = "font-size: 75%; width: 75%")),
+                                  
+                            
+                                  
+                                  column(9,
+                                         verbatimTextOutput("heatmap_instr")),
+                                  
+                                  column(2,
+                                         plotlyOutput("heatmap", height = 600)),
+                                       
+                                  column(7,
+                                         plotlyOutput("heatmapTOD", height = 600))
+                                  
+                            
+                                )
+                              )
+##2d) Compliance barplot output#################################################################################################
+
+              
+                              
+                            )
+                          )
+                        )
+                 ),
+##2g) Response histogram input############################################################################################
+
+                 tabPanel("Responses",
+                          
+                          pageWithSidebar(
+                            
+                            headerPanel("Visualizing EMA Responses"),
+                                        
+                            sidebarPanel(width = 2,
+                                         
+                                         conditionalPanel(condition = "input.conditionedPanels2 == 'Response Histogram'",
+                                                          
+                                                          h4('Main Variable Options'),
+                                                          
+                                                          uiOutput("rhistvar"),
+                                                          
+                                                          hr(),
+                                                          
+                                                          h4('Color Variable Options'), 
+                                                          
+                                                          uiOutput("rhistcolor"),
+                                                          
+                                                          radioButtons("rhistradio", "Quantiles:",
+                                                                       c("Auto", "On", "Off"), inline = T),
+                                                          
+                                                          sliderInput("rhistntile", "Number of Quantiles:",
+                                                                      min = 2, max = 10,
+                                                                      value = 4, step = 1),
+                                                          hr(),
+                                                          
+                                                          h4('Random Variable Options'),
+                                                          
+                                                          checkboxGroupInput("rhistrand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Color Var."), selected = c("Main Var.", "Color Var."),
+                                                                             inline = T, width = 300), 
+                                                          actionButton("rhistrandom", "Random Vars"),
+                                                          
+                                                          hr(),
+                                                          
+                                                          actionButton("rhist1", "Create/Update Plot")
+                                                          
+                                                      
+                                         ),
+##2h) Response boxplot input#################################################################################################
+                                         
+                                         conditionalPanel(condition = "input.conditionedPanels2 == 'Response Boxplot'",
+                                                          
+                                                          h4('Main Variable Options'),
+                                                          
+                                                          uiOutput("rboxplotvar"),
+                                                          
+                                                          hr(),
+                                                          
+                                                          h4('Color Variable Options'), 
+                                                          
+                                                          uiOutput("rboxplotcolor"),
+                                                          
+                                                          radioButtons("rboxplotradio", "Quantiles:",
+                                                                       c("Auto", "On", "Off"), inline = T),
+                                                          
+                                                          sliderInput("rboxplotntile", "Number of Quantiles:",
+                                                                      min = 2, max = 10,
+                                                                      value = 4, step = 1),
+                                                          hr(),
+                                                          
+                                                          h4('Random Variable Options'),
+                                                          
+                                                          checkboxGroupInput("rboxplotrand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Color Var."), selected = c("Main Var.", "Color Var."),
+                                                                                                                                                  inline = T, width = 300), 
+                                                          actionButton("rboxplotrandom", "Random Vars"),
+                                                          
+                                                          hr(),
+                                                          
+                                                          actionButton("rboxplot1", "Create/Update Plot")
+                                                          
+                                                          
+                                                          
+                                                         
+                                                          
+                                         ),
+##2i) Response heatmap input#############################################################################################                                        
+
+                                         conditionalPanel(condition = "input.conditionedPanels2 == 'Response Heatmap'",
+                                                          
+                                                          h4('Main Variable Options'),
+                                                          
+                                                          uiOutput("rheatmapvar"),
+                                                          
+                                                          hr(),
+                
+                                                          h4('Ordering Variable Options'), 
+                                                          
+                                                          uiOutput("rheatmaporder"),
+                                                          
+                                                          hr(),
+                                                          
+                                                          h4('Plot 2 Options'),
+                                                          
+                                                          selectInput("rheatmapraw", 
+                                                                      label = "Data Type:", 
+                                                                      choices = c("raw", "subject normalized"),
+                                                                      selected = "raw"),
+                                                          
+                                                          selectInput("rheatmapstrat", 
+                                                                      label = "Stratify By:", 
+                                                                      choices = c("timeofday", "weekday"),
+                                                                      selected = "timeofday"),
+                                                          
+                                                          hr(),
+                                                          
+                                                          h4('Random Variable Options'),
+                                                          
+                                                          checkboxGroupInput("rheatmaprand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Order Var."), selected = c("Main Var.", "Order Var."),
+                                                                             inline = T, width = 300), 
+                                                          actionButton("rheatmaprandom", "Random Vars"),
+                                                          
+                                                          hr(),
+                                                          
+                                                          actionButton("rheatmap1", "Create/Update Plot")
+                                                      
+                                                          
+                                         ),
+##2j) Response trajectory input############################################################################################# 
+
+                                         conditionalPanel(condition = "input.conditionedPanels2 == 'Response Trajectory'",
+                                                                           
+                                                                           h4('Plot Options'),
+                                                                           
+                                                                           selectInput("rtrajaxis", 
+                                                                                       label = "X-Axis Time Variable:", 
+                                                                                       choices = c("timepoint", "weekday_n", "weektime_n", "day"),
+                                                                                       selected = "timepoint"),
+                                                                           
+                                                                           radioButtons("rtrajtraces", "Plot Line Type:",
+                                                                                        c("Group Means", "Subject Traces"), inline = T),
+                                                                           
+                                                                           hr(),
+                                                                          
+                                                                           h4('Main Variable Options'),
+                                                                           
+                                                                           uiOutput("rtrajvar"),
+                                                                           
+                                                                           radioButtons("rtrajraw", "Data Type:",
+                                                                                        c("Raw", "Subject Normalized"), inline = T, selected = "Subject Normalized"),
+                                                                           
+                        
+                                                                           hr(),
+                                                                           
+                                                                           h4('Color Variable Options'), 
+                                                                           
+                                                                           uiOutput("rtrajcolor"),
+                                                                           
+                                                                           radioButtons("rtrajradio", "Quantiles:",
+                                                                                        c("Auto", "On", "Off"), inline = T),
+                                                                           
+                                                                           sliderInput("rtrajntile", "Number of Quantiles:",
+                                                                                       min = 2, max = 10,
+                                                                                       value = 4, step = 1),
+                                                                           hr(),
+                                                                       
+                                                                           
+                                                                           actionButton("rtraj1", "Create/Update Plot")
+                                                                          
+                                                          ),
+
+##2k) Response scatterplot input############################################################################################# 
+
+                                         conditionalPanel(condition = "input.conditionedPanels2 == 'Response Scatterplot'",
+                                                          
+                                                          h4("Main Variables Options"),
+                                                          
+                                                          uiOutput("scatterplot_y_var"),
+                                                          
+                                                          uiOutput("scatterplot_x_var"),
+                                                          
+                                                          uiOutput("scatterplotraw"),
+                                                          
+                                                          radioButtons("scatterplotlevel", "Main Variables Level:", c("Subject", "Day", "Assessment"), selected = "Subject", inline = T),
+                                                          
+                                                          hr(),
+                                                          
+                                                          h4("Color Variable Options"),
+                                                          
+                                                          uiOutput("scatterplotcolor"),
+                                                          
+                                                          radioButtons("scatterplotcolortype", 
+                                                                       label = "Color Variable Type:", 
+                                                                       choices = c("Raw", "Subject Normalized"),
+                                                                       selected = "Raw", inline = T),
+                                                          
+                                                          uiOutput("scatterplotcolorlevel"),
+                                                          
+                                                          
+                                                          radioButtons("scatterplotradio", "Quantiles:",
+                                                                       c("Auto", "On", "Off"), inline = T),
+                                                          
+                                                          sliderInput("scatterplotntile", "Number of Quantiles:",
+                                                                      min = 2, max = 10,
+                                                                      value = 4, step = 1),
+                                                          
+                                                          hr(),
+                                        
+                                                          actionButton("scatterplot1", "Create/Update Plot")
+                                                      
+                                                          
+                                                          )
+                                                          
+                                                          
+                                                          
+                                         ),
+                                         
+##2l) Response histogram output############################################################################################# 
+
+                            
+                            mainPanel(
+                              
+                              tabsetPanel(id = "conditionedPanels2",
+                                          
+                                          tabPanel("Response Histogram", 
+                                                   
+                                                   fluidRow(
+                                                     
+                                                     column(3, 
+                                                       verbatimTextOutput("helper2.1title"),
+                                                       div(DT::dataTableOutput("table3"), style = "font-size: 75%; width: 75%"),
+                                                       actionButton("helper2.1button", "Update Helper")),
+                                                     
+                                                     
+                                                     column(9,
+                                                            div(style = "height:10px"),
+                                                            verbatimTextOutput("rhist_instr"),
+                                                            div(plotlyOutput("histR", height = 500)),
+                                                            div(style = "height:10px"),
+                                                            div(plotlyOutput("missinghistR", height = 200)))
+                                                     
+                                               
+                                                     
+                                                   )
+                                          ),
+##2m) Response boxplot output############################################################################################# 
+                                          
+                                          tabPanel("Response Boxplot",
+                                                   fluidRow(
+                                                     column(3, 
+                                                            verbatimTextOutput("helper2.2title"),
+                                                            div(DT::dataTableOutput("table4"), style = "font-size: 75%; width: 75%"),
+                                                            actionButton("helper2.2button", "Update Helper")),
+                                                     
+                                                   
+                                                     
+                                                     column(9,
+                                                            div(style = "height:10px"),
+                                                            verbatimTextOutput("rboxplot_instr"),
+                                                            plotlyOutput("boxplot_dR", height = 500),
+                                                            plotlyOutput("boxplotR", height = 300),
+                                                            div(style = "height:25px"))
+                                                            
+                                                   )
+                                          ), 
+##2n) Response heatmap output############################################################################################# 
+
+                                          
+                                          tabPanel("Response Heatmap",
+                                                   fluidRow(
+                                                     
+                                                     column(3, 
+                                                            verbatimTextOutput("helper2.3title"),
+                                                            div(DT::dataTableOutput("table5"), style = "font-size: 75%; width: 75%"),
+                                                            actionButton("helper2.3button", "Update Helper")),
+                                                     
+                                                     column(1),
+                                                     
+                                                     column(8,
+                                                            div(style = "height:10px"),
+                                                            verbatimTextOutput("rheatmap_instr")),
+                                                  
+                                                     column(2,
+                                                            plotlyOutput("heatmapR", height = 600)),
+                                                     
+                                                     column(6,
+                                                            plotlyOutput("heatmapTODR", height = 600))
+                                                     
+                                                    #column(4,
+                                                            #h6("Survey Question/Variable Description:"),
+                                                            #verbatimTextOutput("code5")),
+                                                     
+                                                     #column(4, 
+                                                            #h6("Response:"),
+                                                            #verbatimTextOutput("code6"))
+                                                     
+                                                   )
+                                           ),
+##2o) Response trajectory output############################################################################################# 
+
+                                       
+                                          tabPanel("Response Trajectory",
+                                                   fluidRow(
+                                                     
+                                                     column(3, 
+                                                            verbatimTextOutput("helper2.4title"),
+                                                            div(DT::dataTableOutput("table6"), style = "font-size: 75%; width: 75%"),
+                                                            actionButton("helper2.4button", "Update Helper")),
+                                                     
+                                                     column(9,
+                                                            div(style = "height:10px"),
+                                                            div(style="display: inline-block;vertical-align:top; width: 300px;", checkboxGroupInput("rtrajrand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Color Var."), selected = c("Main Var.", "Color Var."),
+                                                                                                                                                    inline = T, width = 300)), 
+                                                            
+                                                            div(style="display: inline-block;vertical-align:top; width: 200px;", actionButton("rtrajrandom", "Random Vars")),
+                                                            verbatimTextOutput("rtraj_instr"),
+                                                            plotlyOutput("trajR", height = 700))
+                                                   )
+                                          ),
+##2p) Response scatterplot output############################################################################################# 
+
+                                          tabPanel("Response Scatterplot",
+                                                   fluidRow(
+                                                     column(3, 
+                                                            verbatimTextOutput("helper2.5title"),
+                                                            div(DT::dataTableOutput("table7"), style = "font-size: 75%; width: 75%"),
+                                                            actionButton("helper2.5button", "Update Helper")),
+                                                     
+                                                
+                                                     
+                                                     column(9,
+                                                            div(style = "height:10px"),
+                                                            div(style="display: inline-block;vertical-align:top; width: 300px;", checkboxGroupInput("scatterplotrand_choice", label = "Choose Random Inputs:", choices = c("Y-Axis Var.", "X-Axis Var.", "Color Var."), selected = c("Y-Axis Var.", "X-Axis Var.", "Color Var."),
+                                                                                                                                                    inline = T, width = 300)), 
+                                                                
+                                                            div(style="display: inline-block;vertical-align:top; width: 200px;", actionButton("scatterplotrandom", "Random Vars")),
+                                                            verbatimTextOutput("scatterplot_instr"),
+                                                            plotlyOutput("scatterplot", height = 500),
+                                                            div(style = "height:25px"))
+                                                   )
+                                          )
+                              )
+                            )
+                          )
+                          
+                 ),
+##2q) Subject scatterplot input############################################################################################# 
+
+                 tabPanel("Subject Dashboard",
+                   
+                   pageWithSidebar(
+                   
+                   headerPanel("Subject Level Visuals"),
+                   
+                   sidebarPanel(width = 2,
+                                
+                                conditionalPanel(condition = "input.conditionedPanels3 == 'Subject Scatterplot'",
+                                                 
+                                                 h4("Main Variables Options"),
+                                                 
+                                                 uiOutput("subscatter_y_var"),
+                                                 
+                                                 uiOutput("subscatter_x_var"),
+                                                 
+                                                 radioButtons("subscatterraw", 
+                                                              label = "Select Data Type:", 
+                                                              choices = c("Raw", "Subject Normalized"),
+                                                              selected = "Raw", inline = T),
+                                                 
+                                                 radioButtons("subscatterlevel", "Main Variables Level:", c("Day", "Assessment"), selected = "Assessment", inline = T),
+                                                 
+                                                 hr(),
+                                                 
+                                                 h4('Order Variable Options'), 
+                                                 
+                                                 uiOutput("subscatterorder"),
+                                                 
+                                                 hr(),
+                                                 
+                                                 h4('Color Variable Options'), 
+                                                 
+                                                 uiOutput("subscattercolor"),
+                                                 
+                                                 radioButtons("subscatterradio", "Color Variable Quantiles:",
+                                                              c("Auto", "On", "Off"), inline = T),
+                                                 
+                                                 sliderInput("subscatterntile", "Number of Quantiles:",
+                                                             min = 2, max = 10,
+                                                             value = 4, step = 1)
+                                                 
+                                ),
+##2r) Subject meanbrowse input############################################################################################# 
+                                
+                                
+                                conditionalPanel(condition = "input.conditionedPanels3 == 'Subject Mean Trajectory Browse'",
+                                                 
+                                                 h4('Main Variable Options'),
+                                                 
+                                                 uiOutput("meanbrowsevar"),
+                                                 
+                                                 radioButtons("meanbrowseraw", 
+                                                             label = "Select Data Type:", 
+                                                             choices = c("Raw", "Subject Normalized"),
+                                                             selected = "Raw", inline = T),
+                                                 
+                                                 radioButtons("meanbrowseaxis", 
+                                                             label = "X-Axis:",
+                                                             choices = c("Daily Timepoints"="timepoint", "Weekday"="weekday_n"),
+                                                             selected = "timepoint", inline = T),
+                                                 
+                                                 hr(),
+                                                 
+                                                 h4('Order Variable Options'), 
+                                                 
+                                                 uiOutput("meanbrowseorder"),
+                                                 
+                                                 hr(),
+                                                 
+                                                 h4('Color Variable Options'), 
+                                                 
+                                                 uiOutput("meanbrowsecolor"),
+                                                 
+                                                 radioButtons("meanbrowseradio", "Color Variable Quantiles:",
+                                                              c("Auto", "On", "Off"), inline = T),
+                                                 
+                                                 sliderInput("meanbrowsentile", "Number of Quantiles:",
+                                                             min = 2, max = 10,
+                                                             value = 4, step = 1)
+                                                 
+                                ),
+##2s) Subject trajectory input############################################################################################# 
+
+                                conditionalPanel(condition = "input.conditionedPanels3 == 'Subject Trajectory Browse'",
+                                                 
+                                                 h4('Main Variable Options'),
+                                                 
+                                                 uiOutput("subbrowsevar"),
+                                                
+                                                 radioButtons("subbrowseraw", 
+                                                              label = "Main Variable Type:", 
+                                                              choices = c("Raw", "Subject Normalized"),
+                                                              selected = "Raw", inline = T),
+                                                 
+                                                 radioButtons("subbrowselevel", "Main Variable Level:", c("Day", "Assessment"), selected = "Assessment", inline = T),
+                              
+                                                 hr(),
+                                                 
+                                                 h4('Order Variable Options'), 
+                                                 
+                                                 uiOutput("subbrowseorder"),
+                                                 
+                                                 hr(),
+                                                 
+                                                 h4('Color Variable Options'), 
+                                                 
+                                                 uiOutput("subbrowsecolor"),
+                                                 
+                                                 radioButtons("subbrowsecolortype", 
+                                                              label = "Color Variable Type:", 
+                                                              choices = c("Raw", "Subject Normalized"),
+                                                              selected = "Raw", inline = T),
+                                                 
+                                                 uiOutput("subbrowsecolorlevel"),
+                                                 
+                                                 radioButtons("subbrowseradio", "Color Variable Quantiles:",
+                                                              c("Auto", "On", "Off"), inline = T),
+                                                 
+                                                 sliderInput("subbrowsentile", "Number of Quantiles:",
+                                                             min = 2, max = 10,
+                                                             value = 4, step = 1)
+                                                 
+                                                 
+                                                 
+                                ),
+##2t) Subject compare input############################################################################################# 
+
+                                conditionalPanel(condition = "input.conditionedPanels3 == 'Subject Variable Compare'",
+                                                 
+                                                 h4('Find Subject'),
+                                                 
+                                                 uiOutput("subcomparesubject"),
+                                                 
+                                                 h4('Main Variable Options'),
+                                                 
+                                                 uiOutput("subcomparevar1"),
+                                                 
+                                                 uiOutput("subcomparevar2"),
+                                                 
+                                                 radioButtons("subcompareraw", 
+                                                              label = "Main Variable Type:", 
+                                                              choices = c("Raw", "Subject Normalized"),
+                                                              selected = "Raw", inline = T),
+                                                 
+                                                 radioButtons("subcomparelevel", "Main Variable Level:", c("Day", "Assessment"), selected = "Assessment", inline = T),
+                                                 
+                                                 hr(),
+                                                
+                                                 
+                                                 h4('Color Variable Options'), 
+                                                 
+                                                 uiOutput("subcomparecolor"),
+                                                 
+                                                 radioButtons("subcomparecolortype", 
+                                                              label = "Color Variable Type:", 
+                                                              choices = c("Raw", "Subject Normalized"),
+                                                              selected = "Raw", inline = T),
+                                                 
+                                                 uiOutput("subcomparecolorlevel"),
+                                                 
+                                                 radioButtons("subcompareradio", "Color Variable Quantiles:",
+                                                              c("Auto", "On", "Off"), inline = T),
+                                                 
+                                                 sliderInput("subcomparentile", "Number of Quantiles:",
+                                                             min = 2, max = 10,
+                                                             value = 4, step = 1)
+                                                 
+                                            
+                                              
+                                )
+                                
+                   ),
+                   
+##2u) Subject scatterplot output############################################################################################# 
+
+                   
+                   mainPanel(
+                     
+                     tabsetPanel(id = "conditionedPanels3",
+                                 
+                                 tabPanel("Subject Scatterplot", 
+                                          
+                                          fluidRow(
+                                            
+                                            column(10,
+                                                   div(style = "height:15px; width:150px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 80px;", actionButton("subscatterprev", "Prev")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 80px;", actionButton("subscatternext", "Next")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", strong("Current Page:"), textOutput("pagenum3.15_display")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", uiOutput("subscatterpage")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 50px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 400px;", checkboxGroupInput("subscatterrand_choice", label = "Choose Random Inputs:", choices = c("Y-Axis Var.", "X-Axis Var.", "Color Var."), selected = c("Y-Axis Var.", "X-Axis Var.", "Color Var."),
+                                                                                                                                           inline = T, width = 300)), 
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("subscatterrandom", "Random Vars")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 20px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("subscatter1", "Create/Update Plot")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;"),
+                                                   verbatimTextOutput("subscatterplot_instr"), 
+                                                   plotOutput("subscatterplot", height = 800)),
+                                            
+                                            column(2)
+                                            
+                                            
+                                            
+                                          )
+                                 ),
+##2v) Subject meanbrowse output############################################################################################# 
+                                 
+                                 tabPanel("Subject Mean Trajectory Browse", 
+                                          
+                                          fluidRow(
+                                            
+                                            column(10,
+                                                   div(style = "height:15px; width:150px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 80px;", actionButton("meanbrowseprev", "Prev")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 80px;", actionButton("meanbrowsenext", "Next")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", strong("Current Page:"), textOutput("pagenum3.1_display")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", uiOutput("meanbrowsepage")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 50px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 400px;", checkboxGroupInput("meanbrowserand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Color Var.", "Order Var."), selected = c("Main Var.", "Color Var.", "Order Var."),
+                                                                                                                                           inline = T, width = 300)), 
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("meanbrowserandom", "Random Vars")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 20px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("meanbrowse1", "Create/Update Plot")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;"),
+                                                   verbatimTextOutput("meanbrowseplot_instr"), 
+                                                   plotOutput("meanbrowseplot", height = 800)),
+                                            
+                                            column(2)
+                                            
+                                            
+                                            
+                                          )
+                                 ),
+##2v) Subject trajectory output############################################################################################# 
+
+                                 tabPanel("Subject Trajectory Browse",
+                                          fluidRow(
+                                            column(10,
+                                                   div(style = "height:15px; width:150px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 80px;", actionButton("subbrowseprev", "Prev")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 80px;", actionButton("subbrowsenext", "Next")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", strong("Current Page:"), textOutput("pagenum3.2_display")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", uiOutput("subbrowsepage")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 50px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 400px;", checkboxGroupInput("subbrowserand_choice", label = "Choose Random Inputs:", choices = c("Main Var.", "Color Var.", "Order Var."), selected = c("Main Var.", "Color Var.", "Order Var."),
+                                                                        inline = T, width = 300)), 
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("subbrowserandom", "Random Vars")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 20px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("subbrowse1", "Create/Update Plot")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;"),
+                                                   verbatimTextOutput("subbrowseplot_instr"), 
+                                                   plotOutput("subbrowseplot", height = 800)
+                                                   ),
+                                            column(2)
+                                          )
+                                 ),
+
+##2w) Subject compare output############################################################################################# 
+
+                                 
+                                 tabPanel("Subject Variable Compare",
+                                          fluidRow(
+                                            
+                                            column(3, 
+                                                   verbatimTextOutput("helper3.3title"),
+                                                   div(DT::dataTableOutput("table_sub_comp"), style = "font-size: 75%; width: 75%"),
+                                                   actionButton("helper3.3button", "Update Helper")),
+                                            
+                                            column(9,
+                                                   div(style="display: inline-block;vertical-align:top; width: 550px;", checkboxGroupInput("subcomparerand_choice", label = "Choose Random Inputs:", choices = c("Top Var.", "Bottom Var.", "Color Var.", "Subject"), selected = c("Top Var.", "Bottom Var.", "Color Var."),
+                                                                                                                                           inline = T, width = 500)), 
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("subcomparerandom", "Random Vars")),
+                                                   div(style="display: inline-block;vertical-align:top; width: 20px;"),
+                                                   div(style="display: inline-block;vertical-align:top; width: 100px;", actionButton("subcompare1", "Create/Update Plot")),
+                                                   verbatimTextOutput("subcompareplot_instr"), 
+                                                   plotlyOutput("subcompareplot", height = 600)
+                                                   )
+                                            
+                                          )
+                                 )
+                     )
+                   )
+                 )
+              )
+                 
+               
+                 
+                 
+                 
+                 
+)
+
+
+
+
+#SERVER###################################################################################################
+
+server <- function(input, output){
+  
+  options(shiny.maxRequestSize=1000*1024^2) 
+  
+  
+  #setwd("C:\\Users\\Mike\\Documents\\Rstuff\\ShinyApps\\EMAApp1.0")
+  
+  #1) Functions-----------------------------------------------------------------------------------------------------
+  
+  ##1) "countna": count number of non-misisng reponses for a question (x)
+  
+  countna <- function(x, na.rm = FALSE, ...){length(which(!is.na(x)))} 
+  
+  ##2) "newcount": find number of participants who met criteria for compliance for question (x), 
+  #     the criteria is (y)*(max possible reponses for (x)), y in [0,1]
+  
+  newcount <- function(x, y, na.rm = FALSE, ...){length(which(x[1:(length(x) - 1)]>=x[length(x)]*y))}
+  
+  ##3) "Freqperc": generate frequency table for dataset (x) according to the criteria specified in 
+  #    "newcount". (z)=(y) in "newcount".
+  
+  Freqperc <- function(x,threshold){                               
+    f <- x %>%
+      summarise_all(newcount, y=0.5)
+    g <- tibble(Questions = colnames(f),
+                Frequency = as.numeric(f[1,]))
+    g$Percent <- round((g$Frequency/(nrow(x) - 1 )*100), 1)
+    g$maxind <- t(x[nrow(x),])
+    g$criteria <- ifelse(g$maxind==1, "At least 1 response",
+                         ifelse(g$maxind==0, "Automatically-filled", 
+                                paste0("At least ", round(threshold*g$maxind,0), " out of ", g$maxind)))
+    
+    g$maxind <- NULL
+    
+    return(g)
+  }
+  
+  ##4) "Freqdata": Uses the three functions above as well as a auxillary dataset containing max possible responses
+  #    for each variable to create a Compliance dataset that varies with threshold.
+  
+  Freqdata <- function(dataset, maxdata, threshold) {
+    
+    EMA1 <- dataset %>%               #dataset with number of non missing counts for each question
+      group_by(ID) %>%
+      summarise_all(countna) %>%
+      mutate(ID = 0)
+    
+    #Create new row with the max possible amount of responses for each question
+    #Questions will be one of these types:
+    # + Questions offered 4 time a day--56 max responses
+    # + Questions offered once a day----14 max responses
+    # + Conditional questions-----------1 max responses
+    # + broken variables/zero response--max set to 999
+    
+    #Review codebook and create dataset "x" containing max responses for each question, 
+    #where rownames(x)=colnames(EMA1)
+    
+    #Create dataset with a helper column of max responses for each question found in sample
+    #EMA1_max <- EMA1 %>% summarise_all(max)
+    #EMA1_max <- as_data_frame(t(EMA1_max))
+    #EMA1_max$rownames <- colnames(EMA1)
+    #EMA1_max$realmax <- 56
+    #fix(EMA1_max)
+    #maxpalm <- as_data_frame(t(EMA1_max$realmax))
+    #colnames(maxpalm) <- colnames(EMA1)
+    #write_csv(maxpalm, "data/maxpalm.csv")
+    #read in this dataset in datasets section
+    
+    #append the extra row containing max possible responses to dataset
+    EMA1 <- rbind.fill(EMA1, maxdata)
+    
+    #Create frequency table depending on input threshold
+    data <- Freqperc(EMA1, threshold)
+    
+    return(data)
+    
+  }
+  
+  
+  ##5) "give.n", used to show group n on boxplot, currently not in use
+  #give.n <- function(x){
+  #  return(c(y = mean(x, na.rm = T), label = length(na.omit(x))))
+  #}
+  
+  
+  ##6) "mymean"
+  mymean <- function(x) {
+    if(!class(x) %in% c("numeric", "integer")) {NA}
+    else {mean(x, na.rm = T)}
+  }
+  ##7) "mysd"
+  mysd <- function(x) sd(x, na.rm = T)
+  
+  ##8) "normalize"
+  normalize <- function(x) {
+    if (is.numeric(x)) {
+      if (sd(x, na.rm = T) %in% 0) {ifelse(!is.na(x), 0, NA)}
+      else {(x - mean(x, na.rm = T))/sd(x, na.rm = T)}
+    }
+    
+    else {x}
+    
+  }
+  
+  ##9) "getmode"
+  getmode <- function(v) {
+    v <- as.character(v)
+    uniqv <- unique(na.omit(v))
+    uniqv[which.max(tabulate(match(v, uniqv)))]
+  }
+  
+  ##10) "my_ntiles" modified version of mosaic::ntiles, handles repeated ntile limits and missings
+  my_ntiles <- function (x, n = 3, digits = 3) 
+    
+  {
+    x <- as.numeric(x)
+    xrank <- rank(x, na.last = TRUE, ties.method = "first")
+    xrank[is.na(x)] <- NA
+    size <- max(xrank, na.rm = TRUE)
+    
+    if(size[[1]] < n + 1) {res <- rep(NA, length(x))}
+    
+    else{
+      
+      cts <- round(seq(1, size, length.out = (n + 1)))
+      bin <- as.numeric(cut(xrank, breaks = cts, include.lowest = TRUE))
+      left <- min(x ~ bin, na.rm = TRUE)
+      right <- max(x ~ bin, na.rm = TRUE)
+      res <- factor(bin, labels = paste0("[", signif(left, digits = digits), " to ", signif(right, digits = digits), "]", " Q", max(bin ~ bin, na.rm = T)), ordered = TRUE)
+    }
+    
+    return(res)
+  }
+  
+  
+  ##11) "Ordershow" function for ordering variable display, rounds numeric to 2 digits
+  ordershow <- function (x) {if (is.numeric(x)) {round(x, 2)} else  {x}}
+  
+  ##12) 
+  
+  myspearman <- function(x, y) {
+    
+    a <- if (has_error(cor.test(x, y, method = 'spearman')))
+      
+      {c(NA,NA,NA,NA)}
+    
+    else {cor.test(x, y, method = 'spearman')}
+
+    
+    return(a)
+    
+  }
+  
+
+  
+  ##14 Helper table dataset generator
+  
+  helpertable <- function(data, var1) {
+    
+    
+    
+    c <- data %>% 
+      mutate_all(~as.numeric(.x)) %>%
+      gather(everything(), -(!!var1), key = variable, value = value) %>% 
+      group_by(variable) %>%
+      dplyr::summarise(spear = list(myspearman((!!var1), value))) %>%
+      group_by(variable) %>%
+      mutate(rho = round(as.numeric(unlist(spear)[[3]]), 4),
+             pval = round(as.numeric(unlist(spear)[[2]]), 4)) %>%
+      select(-spear) %>%
+      arrange(desc(abs(rho)))
+    
+    return(c)
+    
+  }
+  
+  ##Helper table/rankings for subjects
+  
+  helpertable2 <- function(data, var1, var2) {
+    
+    
+    
+    c <- data %>% 
+      select_("ID", var1, var2) %>%
+      mutate_at(c(var1, var2), ~as.numeric(.x)) %>%
+      group_by(ID) %>%
+      dplyr::summarise(spear = list(myspearman((!!sym(var1)), (!!sym(var2))))) %>%
+      group_by(ID) %>%
+      mutate(rho = round(as.numeric(unlist(spear)[[3]]), 4),
+             pval = round(as.numeric(unlist(spear)[[2]]), 4)) %>%
+      select(-spear) %>%
+      arrange(desc(abs(rho)))
+    
+    
+
+    return(c)
+    
+  }
+
+  #2) Preloaded Datasets-------------------------------------------------------------------------------------------------
+  
+  #Example Dataset
+  
+
+    ##Main Dataset
+    starwars_EMA <- read.csv("data/starwars_EMA.csv", na.strings = c("NA", "NaN", ""), stringsAsFactors = F) 
+  
+    ##Max Dataset
+    starwars_max <- read.csv("data/starwars_max.csv", stringsAsFactors = F) 
+  
+    ##Covariates
+    starwars_demo <- read.csv("data/starwars_demo.csv", stringsAsFactors = F)
+
+  
+  ##Upload
+  
+  Upload <- reactiveValues(df = NULL)
+  
+  observeEvent(input$file1, {
+    Upload$df <- read_csv(input$file1$datapath, na = c("NA", "NaN", ""))
+  })
+  
+  Upload_max <- reactiveValues(df = NULL)
+  
+  observeEvent(input$file2, {
+    Upload_max$df <- read_csv(input$file2$datapath,  na = c("NA", "NaN", ""))
+  })
+  
+  
+  Upload_vars <- reactiveValues(df = NULL)
+  
+  observeEvent(input$file3, {
+    Upload_vars$df <-  read_csv(input$file3$datapath, na = c("NA", "NaN", "")) 
+  })
+  
+  
+  
+  
+  
+  ##3) Preloaded dataset preprocess-----------------------------------------------------------------------
+  
+      ###starwars_EMA-------------------------------------------------------------------------------------------------------------------------------------------
+
+
+  starwars_EMA$timeofday <- factor(starwars_EMA$timepoint, levels = c(1, 2, 3, 4), labels = c("morning", "noon", "afternoon", "evening"))
+  
+  starwars_EMA$weekday <- weekdays(as.Date(starwars_EMA$time))
+  starwars_EMA$weekday <- factor(starwars_EMA$weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+  
+  starwars_EMA$weekday_n <- ifelse(starwars_EMA$weekday %in% "Monday", 1, 
+                            ifelse(starwars_EMA$weekday %in% "Tuesday", 2,
+                                   ifelse(starwars_EMA$weekday %in% "Wednesday", 3, 
+                                          ifelse(starwars_EMA$weekday %in% "Thursday", 4,
+                                                 ifelse(starwars_EMA$weekday %in% "Friday", 5,
+                                                        ifelse(starwars_EMA$weekday %in% "Saturday", 6,
+                                                               ifelse(starwars_EMA$weekday %in% "Sunday", 7, NA)))))))
+
+  
+  starwars_EMA$weektime_n <- (starwars_EMA$weekday_n - 1) * 4 + starwars_EMA$timepoint
+  
+  starwars_EMA$timeindex <- starwars_EMA$day * 4 - (4 - starwars_EMA$timepoint)
+  
+  starwars_EMA$ID <- as.character(starwars_EMA$ID)
+
+  
+
+  ###NIMHvars------------------------------------------------------------------------------------------------------------------------------------------
+  #NIMHvars$diagnosis <- factor(NIMHvars$diagnosis, levels = c("bipolar I", "bipolar II", "MDD", "Anxiety", "control", "other"))
+  
+  names(starwars_demo)[1] <- "ID"
+  #starwars_demo <- as_data_frame(apply(starwars_demo, 2, factor))
+  
+  starwars_demo <- starwars_demo %>% mutate(ID = as.character(ID)) %>% 
+                           mutate_if(is.integer, function (x) if (length(unique(x)) <= 20)  {as.character(x)} 
+                                                              else {x})
+
+  
+ 
+  ### 4) Upload dataset variable creation-----------------------------------------------------------------------------------------------------------------
+  
+  #Rules: ID variable is called "ID"
+  #1)time variable called "time", in any MM/DD/YY HH:MM:SS format (pick a standard format for time plots)
+  #2)daily index variable called "timepoint", 1:D, where D is the max number of assessments per day
+  #3) timeofday is a factor version of "timepoint"
+  #4)assessment day variable called "day", from 1:T, where T is the max number of assessment per subject
+  
+  
+
+  ####Main dataset
+  
+  observeEvent(input$file1, {
+  
+  Upload$df <- Upload$df %>% mutate(
+                        
+                        #factor version of timepoint variable
+                        timeofday = as.factor(timepoint),
+                        
+                        #weekday variable
+                        weekday = factor(weekdays(as.Date(time)), levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")),
+                        
+                        #numeric weekday variable
+                        weekday_n = ifelse(weekday %in% "Monday", 1, 
+                                           ifelse(weekday %in% "Tuesday", 2,
+                                                  ifelse(weekday %in% "Wednesday", 3, 
+                                                         ifelse(weekday %in% "Thursday", 4,
+                                                                ifelse(weekday %in% "Friday", 5,
+                                                                       ifelse(weekday %in% "Saturday", 6,
+                                                                              ifelse(weekday %in% "Sunday", 7, NA))))))),
+                        #numeric variable for day of week/time of day
+                        weektime_n = (weekday_n - 1) * max(timepoint) + timepoint,
+                        
+                        timeindex = day * 4 - (4 - timepoint),
+                        
+                        #coerce ID variable to be character
+                        ID = as.character(ID)
+                      )
+  })
+  
+  ####Vars dataset
+  
+  #observeEvent(input$file3, {
+    
+  #Upload_vars$df <- Upload_vars$df %>% mutate(diagnosis = ifelse(BIP1 %in% 1, "bipolar I", 
+   #                                                            ifelse(BIP2 %in% 1, "bipolar II",
+  #                                                                    ifelse(MDD_Dx %in% 1, "MDD",
+   #                                                                          ifelse(ANX %in% 1, "Anxiety",
+   #                                                                                 ifelse(control %in% 1, "control", "other"))))),
+   #                                         
+    #                                        diagnosis = factor(diagnosis, levels = c("bipolar I", "bipolar II", "MDD", "Anxiety", "control", "other"))) %>%
+    #                                 dplyr::rename(ID = studyid) %>%
+    #                                 mutate(ID = as.character(ID)) %>%
+     #                                mutate_if(is.integer, function (x) if (length(unique(x)) <= 20)  {as.character(x)} 
+     #                                                                   else {x})
+  
+  #})
+    
+ 
+  ##5) Dataset selection--------------------------------------------------------------------------------------------------
+  
+  #main dataset
+  dataset <- reactiveValues(l = NULL)
+  
+  observeEvent(input$go, ignoreInit = T, {
+  
+  dataset$l <- {switch(input$dataset,
+                       "Example data" = starwars_EMA,
+                       "Upload" = Upload$df)}
+  Upload$df <- NULL
+  
+  })
+ 
+  
+  #max dataset
+  dataset_max <- reactiveValues(l = NULL)
+  
+  observeEvent(input$go, ignoreInit = T, {
+  
+  dataset_max$l <- {switch(input$dataset,
+                           "Example data" = starwars_max,
+                           "Upload" = Upload_max$df)}
+  Upload_max$df <- NULL
+  
+  })
+  
+  #vars dataset
+  dataset_vars <- reactiveValues(l = NULL)
+  
+  observeEvent(input$go, ignoreInit = T, {
+  
+  dataset_vars$l <- {switch(input$dataset,
+                            "Example data" = starwars_demo,
+                            "Upload" = Upload_vars$df)}
+  
+  Upload_vars$df <- NULL
+  
+  })
+
+
+  #add all demo vars to main dataset
+  dataset_all <- reactiveValues(l = NULL)
+  
+  observeEvent(input$go, ignoreInit = T, {
+    
+  dataset_all$l <- dataset$l %>% left_join(dataset_vars$l, by = 'ID')
+    
+  })
+  
+  
+  
+  observeEvent(input$go, {showNotification(
+                           paste0(input$dataset, " Selected"),
+                           duration = 2, 
+                           type = "message")})
+  
+  
+  
+  
+  #Merge main dataset and vars dataset to make final vars datasets for data subset, create dataset at full, day, and subject levels
+  
+  stratify_vars <- reactiveValues(df_sub = NULL, df_full = NULL)
+  
+  observeEvent(input$go, { withProgress(message = 'Creating Datasets', {
+    
+    stratify_vars$df_full <- dataset$l %>%
+      mutate(month = substr(time, 6, 7),
+             year = substr(time, 1, 4),
+             season = ifelse(month %in% c("03", "04", "05"), "spring",
+                             ifelse(month %in% c("06", "07", "08"), "summer",
+                                    ifelse(month %in% c("09", "10", "11"), "fall",
+                                           ifelse(month %in% c("12", "01", "02"), "winter", NA))))
+      ) %>%
+      left_join(dataset_vars$l, by="ID")
+    
+    
+    stratify_vars$df_sub <- stratify_vars$df_full %>%
+                            group_by(ID) %>%
+                            summarise_at(2, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                   ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+                            return(y)}) %>% 
+                            ungroup()
+                           
+                      
+    
+  })
+  })
+  
+
+  
+  
+ 
+  
+  
+  #6a) Compliance barplot ---------------------------------------------------------------------------
+  remove_vars <- c("day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  remove_vars2 <- c("day", "time", "timepoint")
+  
+  ##data for frequency histogram
+  data <- reactive({withProgress(message = 'Computing Compliance', {
+                                 Freqdata(select(dataset$l, -remove_vars), select(dataset_max$l, -remove_vars2), input$num) 
+                                 })
+                                 })
+  
+  ##parameters for frequency historgram
+  data2 <- reactive({data()[order(-data()$Percent),]})
+  data3 <- reactive({data()[order(data()$Questions),]})
+  limits <- reactive({data()$Questions[data()$Percent>=input$slider[1] & data()$Percent<=input$slider[2]]})
+  limits2 <- reactive({data2()$Questions[data2()$Percent>=input$slider[1] & data2()$Percent<=input$slider[2]]})
+  limits3 <- reactive({data3()$Questions[data3()$Percent>=input$slider[1] & data3()$Percent<=input$slider[2]]})
+  height <- reactive({length(limits())*14+500})
+  
+  ##frequency histogram output
+  output$Bar <- renderPlot({
+    if(input$sort==1){ggplot(data=data()[data()$Questions %in% limits(),], aes(x=Questions, y=Percent, fill=Percent))+
+        ggtitle(paste0("Frequency percents (n=",length(limits())," out of ", nrow(data()), ")"))+
+        guides(fill=FALSE)+
+        geom_bar(stat="identity")+
+        scale_x_discrete(limits=rev(limits()))+
+        scale_y_continuous(expand=c(0,0), limits=(c(0,110)))+
+        scale_fill_distiller(palette = "RdYlGn", trans = "reverse", limits = c(100,0))+
+        geom_text(aes(label=Percent), hjust = 0, nudge_x = 0.05)+
+        theme_bw()+
+        theme(axis.title.y=element_blank(),
+              panel.border = element_blank(),
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank(), 
+              panel.background = element_blank())+
+        coord_flip()
+    }
+    else if(input$sort==2){ggplot(data=data2()[data2()$Questions %in% limits(),], aes(x=Questions, y=Percent, fill=Percent))+
+        ggtitle(paste0("Frequency percents (n=",length(limits2())," out of ", nrow(data()), ")"))+
+        guides(fill=FALSE)+
+        geom_bar(stat="identity")+
+        scale_x_discrete(limits=rev(limits2()))+
+        scale_y_continuous(expand=c(0,0), limits=(c(0,110)))+
+        scale_fill_distiller(palette = "RdYlGn", trans = "reverse", limits = c(100,0))+
+        geom_text(aes(label=Percent), hjust = 0, nudge_x = 0.05)+
+        theme_bw()+
+        theme(axis.title.y=element_blank(),
+              panel.border = element_blank(),
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank(), 
+              panel.background = element_blank())+
+        coord_flip()
+    }
+    else if(input$sort==3){ggplot(data=data3()[data3()$Questions %in% limits(),], aes(x=Questions, y=Percent, fill=Percent))+
+        ggtitle(paste0("Frequency percents (n=",length(limits3())," out of ", nrow(data()), ")"))+
+        guides(fill=FALSE)+
+        geom_bar(stat="identity")+
+        scale_x_discrete(limits=rev(limits3()))+
+        scale_y_continuous(expand=c(0,0), limits=(c(0,110)))+
+        scale_fill_distiller(palette = "RdYlGn", trans = "reverse", limits = c(100,0))+
+        geom_text(aes(label=Percent), hjust = 0, nudge_x = 0.05)+
+        theme_bw()+
+        theme(axis.title.y=element_blank(),
+              panel.border = element_blank(),
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank(), 
+              panel.background = element_blank())+
+        coord_flip()
+    }
+  },
+  height = height , width = 800)
+  
+  ##Median box
+  output$median <- renderPrint({cat('Median Frequency:\n')
+    print(median(data()[data()$Questions %in% limits(),]$Percent))
+    cat('Mean Frequency:\n')
+    print(round(mean(data()[data()$Questions %in% limits(),]$Percent), 2))
+  })
+  
+  ##Get names box
+  output$namespalm <- renderPrint(if (input$sort==1) {cat(paste(shQuote(limits(), type="cmd"), collapse=", "))}
+                                  else if (input$sort==2) {cat(paste(shQuote(limits2(), type="cmd"), collapse=", "))}
+                                  else if (input$sort==3) {cat(paste(shQuote(limits3(), type="cmd"), collapse=", "))})
+  
+  
+  #6b) Compliance boxplot-----------------------------------------------------------------------------------------------------
+  remove_vars1.2 <- c("ID", "day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+ 
+  
+  ##data table for boxplot
+  output$table1 <- DT::renderDataTable(data(), selection = list(selected = 8, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  #remove_vars1.2 <- c("day", "signal", "time", "timeofday", "timepoint", "weekday", "weekday_n", "weektime_n", "timeindex")
+  
+  #Select main variable
+  output$boxplotvar <- renderUI({selectInput('boxplotvar', 'Main Variable:', names(dataset$l)[! names(dataset$l) %in% remove_vars1.2], selected = boxplotvariables$var, selectize=TRUE)})
+  
+  #table variable selection
+  observeEvent(input$table1_rows_selected, {
+    
+    boxplotvariables$var <-data()[["Questions"]][[input$table1_rows_selected]]
+    
+  })
+  
+
+  #Select coloring variable
+  output$boxplotcolor <- renderUI({selectInput('boxplotcolor', 'Color By:', c("None", varnames1.2$df[! varnames1.2$df %in% remove_vars1.2]), selected = boxplotvariables$color, selectize=TRUE)})
+  
+  
+  #boxplot color variable
+  varcolor1.2 <- reactiveValues(l="ID")
+  
+  observeEvent(input$boxplot1, {if (input$boxplotcolor %in% c("ID", "None")) {varcolor1.2$l <- input$boxplotcolor}
+    else {varcolor1.2$l <- paste0(input$boxplotcolor, "_s")} 
+  })
+  
+  # output$boxselectR <- renderUI({selectInput('boxselectR', 'Stratify by:', c("None", varnames$l), selectize=TRUE)})
+  
+  
+  ##Use varnames so updating stratify_vars3.1$df2 doesn't refresh subbrowsecolor
+  varnames1.2 <- reactiveValues(df=NULL)
+  
+  
+  ##Color datasets
+  stratify_vars1.2 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Default datasets
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars1.2$df <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_s=1)
+    stratify_vars1.2$df2 <- stratify_vars1.2$df
+    
+    varnames1.2$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  
+  ##create the appropriate stratify_vars1.2$df 
+  observeEvent(input$boxplot1, {
+    
+    if(!input$boxplotcolor %in% c("ID", "None")) {
+      stratify_vars1.2$df <- stratify_vars$df_full %>% select_("ID", input$boxplotcolor) %>%
+        group_by(ID) %>%
+        summarise_at(input$boxplotcolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                   ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup() 
+    }
+    
+    else {stratify_vars1.2$df <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)}
+    
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars1.2$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$boxplot1, ignoreInit = T, {
+    
+    stratify_vars1.2$df2 <-  
+      
+      
+      if(input$boxplotcolor %in% c("ID", "None")) {stratify_vars1.2$df}
+    
+    else {
+      if(input$boxplotradio %in% "Auto"){
+        stratify_vars1.2$df %>% 
+          mutate_at(input$boxplotcolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {my_ntiles(x, input$boxplotntile)}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {factor(x, ordered = T, exclude = c(NA, "NaN"))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$boxplotcolor), ~ paste0(input$boxplotcolor, "_s"))
+      }
+      
+      else if (input$boxplotradio %in% "On"){
+        stratify_vars1.2$df %>% 
+          mutate_at(input$boxplotcolor, ~my_ntiles(.x, input$boxplotntile)) %>%
+          rename_at(vars(input$boxplotcolor), ~ paste0(input$boxplotcolor, "_s"))
+        
+      }
+      
+      else if (input$boxplotradio %in% "Off"){
+        stratify_vars1.2$df %>% 
+          rename_at(vars(input$boxplotcolor), ~ paste0(input$boxplotcolor, "_s"))
+        
+      }
+    }
+    
+  })
+  
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  
+  boxplotvariables <- reactiveValues(var = "ID", color = "None")
+  
+  #Default boxplot variable
+  observeEvent(input$go, priority = -1, {
+    
+    boxplotvariables$var <- names(dataset$l)[! names(dataset$l) %in% remove_vars1.2][[sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars1.2]), 1)]]
+    
+  })
+  
+  boxplotrandbutton <- reactiveValues(r1=NULL, r2=NULL)
+  
+  observeEvent(input$boxplotrandom, priority = 2, ignoreInit = T, {
+    
+    boxplotrandbutton$r1 <- sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars1.2]), 1)
+    
+    boxplotrandbutton$r2 <- sample(1:length(varnames1.2$df[! varnames1.2$df %in% remove_vars1.2]), 1)
+    
+    
+    if("Main Var." %in% input$boxplotrand_choice) {boxplotvariables$var <- names(dataset$l)[! names(dataset$l) %in% remove_vars1.2][[boxplotrandbutton$r1]]}
+    
+    if("Color Var." %in% input$boxplotrand_choice) {boxplotvariables$color <- varnames1.2$df[! varnames1.2$df %in% remove_vars1.2][[boxplotrandbutton$r2]]}
+    
+  })
+  
+  
+  ##Data for response boxplots
+  
+  boxplotdata <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$boxplot1, ignoreInit = T, {
+    
+    
+    boxplotdata$l <- 
+      dataset_all$l %>% 
+      select_("ID", "timepoint", input$boxplotvar) %>%
+      group_by_("ID") %>%
+      summarise_all(countna) %>%
+      left_join(stratify_vars1.2$df2, by="ID")
+    
+    #time of day boxplot
+    boxplotdata$m <- 
+      dataset_all$l %>% 
+      select_("ID", "timepoint", "timeofday", input$boxplotvar) %>%
+      group_by_("ID", "timeofday") %>%
+      summarise_all(countna)
+    
+  })
+  
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  boxplot_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$boxplot1, ignoreInit = T, {
+    if (boxplot_dummy$l==0) {boxplot_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    boxplot_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$boxplot_instr <-  renderText(
+    if(boxplot_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  
+  ##Main boxplot code
+  output$boxplot <- renderPlotly({
+    
+    input$boxplot1
+    input$go
+    
+    isolate(
+      
+      if(boxplot_dummy$l==0) NULL
+      
+      else {
+        
+        if (varcolor1.2$l  %in% "None") {
+          
+          ggplotly(ggplot(data=boxplotdata$l, aes_string(x=factor(0),
+                                                         y=input$boxplotvar,
+                                                         label="ID"))+ 
+                     geom_boxplot(size=.5, fatten=1)+
+                     geom_jitter(alpha=0.2, size=1.2, shape=19, position = position_jitter(w = 0.5, h = 0.1))+
+                     stat_summary(fun.data = mean_cl_normal, geom="pointrange", size=2, alpha=.8, 
+                                  position=position_dodge(width=0.75), shape=4, color="firebrick")+
+                     labs(y=NULL, x=NULL, title=input$boxplotvar)+
+                     theme_bw()+
+                     theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8), 
+                           axis.text.x = element_text(size=10, vjust = 1, color="gray65"), 
+                           axis.text.y = element_blank(),
+                           axis.line = element_line(color="gray65", size=0.5),
+                           axis.ticks.y = element_blank(),
+                           axis.ticks.x = element_line(colour = "gray"),
+                           panel.grid.major = element_blank(), 
+                           panel.grid.minor = element_blank(), 
+                           panel.background = element_blank(),
+                           panel.border = element_blank(),
+                           #plot.margin = unit( c(0,3,3,0) , "in"),
+                           aspect.ratio = 0.3) +
+                     #legend.position="none")+
+                     coord_flip()
+                   #coord_flip(ylim=c(0, max(boxdata_dR()[4])), expand = c(0.1,0))+
+                   #scale_y_continuous(breaks=seq(0, max(boxdata_dR()[2]), by = 4))
+          )
+        }
+        
+        else {  
+          
+          ggplotly(ggplot(data=boxplotdata$l, aes_string(x=varcolor1.2$l ,
+                                                         y=input$boxplotvar,
+                                                         label="ID", color=varcolor1.2$l))+ 
+                     geom_boxplot(size=.5, fatten=1)+
+                     geom_jitter(alpha=0.2, size=1.2, shape=19, position = position_jitter(w = 0.5, h = 0.1))+
+                     stat_summary(fun.data = mean_cl_normal, geom="pointrange", size=2, alpha=.8, 
+                                  position=position_dodge(width=0.75), shape=4, color="firebrick")+
+                     #stat_summary(fun.data = give.n, geom = "text", color="firebrick", size=4) +
+                     labs(y=NULL, x=NULL, title=input$boxplotvar)+
+                     theme_bw()+
+                     theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8), 
+                           axis.text.x = element_text(size=10, vjust = 1, color="gray65"), 
+                           axis.text.y = element_text(size=10),
+                           axis.line = element_line(color="gray65", size=0.5),
+                           axis.ticks.y = element_blank(),
+                           axis.ticks.x = element_line(colour = "gray"),
+                           panel.grid.major = element_blank(), 
+                           panel.grid.minor = element_blank(), 
+                           panel.background = element_blank(),
+                           panel.border = element_blank(),
+                           plot.margin = unit( c(0.5,0.5,0.5,1) , "cm"),
+                           aspect.ratio = 0.3)+
+                     #legend.position="none")+
+                     coord_flip()
+                   #coord_flip(ylim=c(0, max(boxdata_dR()[4])), expand = c(0.1,0))+
+                   #scale_y_continuous(breaks=seq(0, max(boxdata_dR()[2]), by = 4))
+          )
+          
+          
+        }
+      }
+      
+    )
+    
+  })
+  
+  
+  ##Timeofday boxplot code
+  
+  output$boxplotTOD <- renderPlotly({
+    
+    input$boxplot1
+    input$go
+    
+    isolate(
+      
+      if(boxplot_dummy$l==0) NULL
+      
+      else {
+        
+        ggplotly(ggplot(data=boxplotdata$m, aes_string(x="timeofday", 
+                                                       y=input$boxplotvar, 
+                                                       color="timeofday", label="ID"))+
+                   geom_boxplot(size=.5, fatten=1)+
+                   geom_jitter(alpha=0.2, size=1.2, shape=19, position = position_jitter(w = 0.5, h = 0.1))+
+                   stat_summary(fun.data = mean_cl_normal, geom="pointrange", size=2, alpha=.8, 
+                                position=position_dodge(width=0.75), shape=4, color="firebrick")+
+                   labs(y=NULL, x=NULL, title="")+
+                   scale_x_discrete(limits = rev(levels(boxplotdata$m[["timeofday"]])))+
+                   theme_bw()+
+                   theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8), 
+                         axis.text.x = element_text(size=8, vjust = 1, color="gray65"), 
+                         axis.text.y = element_text(size=10),
+                         axis.line = element_line(color="gray65", size=0.5),
+                         axis.ticks.y = element_blank(),
+                         axis.ticks.x = element_line(colour = "gray"),
+                         panel.grid.major = element_blank(), 
+                         panel.grid.minor = element_blank(), 
+                         panel.background = element_blank(),
+                         panel.border = element_blank(),
+                         #plot.margin = unit( c(0,3,3,0) , "in"),
+                         aspect.ratio = 0.2,
+                         legend.position="none") +
+                   coord_flip()
+                 # scale_y_continuous(breaks=c(0:max(boxdataR()[3])))
+        )
+        
+      }
+      
+    )
+    
+  })
+  
+  
+  
+  #6c) Compliance heatmap-----------------------------------------------------------------------------------------------------
+  
+  remove_vars1.4 <- c("ID", "day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  remove_vars1.4_2 <- c("day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  
+  
+  ##datatable for heatmaps
+  output$table2 <- DT::renderDataTable(data(), selection = list(selected = 8, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  #Select main variable
+  output$heatmapvar <- renderUI({selectInput('heatmapvar', 'Main Variable:', names(dataset$l)[! names(dataset$l) %in% remove_vars1.4], selected = heatmapvariables$var, selectize=TRUE)})
+  
+  #table variable selecct
+  observeEvent(input$table2_rows_selected, {
+    
+    heatmapvariables$var <-data()[["Questions"]][[input$table2_rows_selected]]
+    
+  })
+  
+  #Select ordering variable
+  output$heatmaporder <- renderUI({selectInput('heatmaporder', 'Order By:', c("None", "Compliance", varnames1.4$df[! varnames1.4$df %in% remove_vars1.4_2]), selected = heatmapvariables$order, selectize=TRUE)})
+  
+  
+  #heatmap order variable
+  varorder1.4 <- reactiveValues(l="ID")
+  
+  observeEvent(input$heatmap1, {if (input$heatmaporder %in% c("ID", "None", "Compliance")) {varorder1.4$l <- input$heatmaporder}
+    else {varorder1.4$l <- paste0(input$heatmaporder, "_s")} 
+  })
+  
+  
+  ##Use varnames so updating stratify_vars3.1$df2 doesn't refresh subbrowseorder
+  varnames1.4 <- reactiveValues(df=NULL)
+  
+  
+  ##order datasets
+  stratify_vars1.4 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Default datasets
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars1.4$df <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_s=1)
+    stratify_vars1.4$df2 <- stratify_vars1.4$df
+    
+    varnames1.4$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  
+  ##create the appropriate stratify_vars1.4$df 
+  observeEvent(input$heatmap1, {
+    
+    if(!input$heatmaporder %in% c("ID", "None", "Compliance")) {
+      stratify_vars1.4$df <- stratify_vars$df_full %>% select_("ID", input$heatmaporder) %>%
+        group_by(ID) %>%
+        summarise_at(input$heatmaporder, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                   ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup() 
+    }
+    
+    else {stratify_vars1.4$df <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)}
+    
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars2.2$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$heatmap1, ignoreInit = T, {
+    
+    stratify_vars1.4$df2 <-  
+      
+      if(input$heatmaporder %in% c("None", "Compliance")) {stratify_vars1.4$df}
+    
+    else {stratify_vars1.4$df %>% 
+        rename_at(vars(input$heatmaporder), ~ paste0(input$heatmaporder, "_s"))
+      
+    }
+  })
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  heatmapvariables <- reactiveValues(var = "ID", order = "Compliance")
+  
+  #default heatmap var
+  observeEvent(input$go, priority = -1, {
+    
+    heatmapvariables$var <- names(dataset$l)[! names(dataset$l) %in% remove_vars1.4][[sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars1.4]), 1)]]
+    
+  })
+  
+  
+  
+  heatmaprandbutton <- reactiveValues(r1=NULL, r2=NULL)
+  
+  observeEvent(input$heatmaprandom, priority = 2, ignoreInit = T, {
+    
+    heatmaprandbutton$r1 <- sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars1.4]), 1)
+    
+    heatmaprandbutton$r2 <- sample(1:length(varnames1.4$df[! varnames1.4$df %in% remove_vars1.4_2]), 1)
+    
+    
+    if("Main Var." %in% input$heatmaprand_choice) {heatmapvariables$var <- names(dataset_all$l)[! names(dataset$l) %in% remove_vars1.4][[heatmaprandbutton$r1]]}
+    
+    if("Order Var." %in% input$heatmaprand_choice) {heatmapvariables$order <- varnames1.4$df[! varnames1.4$df %in% remove_vars1.4_2][[heatmaprandbutton$r2]]}
+    
+  })
+  
+  
+  ##Data for Compliance heatmaps
+  
+  heatmapdata <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$heatmap1, ignoreInit = T, {
+    
+    #Main heatmap
+    
+    heatmapdata$l <-   
+      
+      if(input$heatmaporder %in% "None"){
+        
+        dataset_all$l %>% 
+          select_("ID", "timepoint", input$heatmapvar) %>%
+          group_by_("ID") %>%
+          summarise_all(countna) %>%
+          left_join(stratify_vars1.4$df2, by="ID")
+        
+      }
+    
+    else if (input$heatmaporder %in% "Compliance") {
+      
+      dataset_all$l %>% 
+        select_("ID", "timepoint", input$heatmapvar) %>%
+        group_by_("ID") %>%
+        summarise_all(countna) %>%
+        left_join(stratify_vars1.4$df2, by="ID") %>%
+        arrange_(input$heatmapvar)
+    }
+    
+    else {
+      
+      dataset_all$l %>% 
+        select_("ID", "timepoint", input$heatmapvar) %>%
+        group_by_("ID") %>%
+        summarise_all(countna) %>%
+        left_join(stratify_vars1.4$df2, by="ID") %>%
+        arrange_(varorder1.4$l, input$heatmapvar)
+    }
+    
+    #Time of day plot
+    
+    heatmapdata$m <- 
+      
+      if (input$heatmapraw %in% "raw") {
+        
+        dataset_all$l %>% 
+          select_("ID", "timeofday", "weekday", input$heatmapvar) %>%
+          group_by_("ID", input$heatmapstrat) %>%
+          summarise_all(countna) %>%
+          left_join(stratify_vars1.4$df2, by="ID")
+      }
+    
+    else if (input$heatmapraw %in% "subject normalized") {
+      
+      if (input$heatmapvar %in% "ID") {
+        
+        dataset_all$l %>% 
+          select_("ID", "timeofday", "weekday", input$heatmapvar) %>%
+          group_by_("ID", input$heatmapstrat) %>%
+          summarise_all(countna) %>%
+          left_join(stratify_vars1.4$df2, by="ID")
+      }
+      
+      else {
+        
+        dataset_all$l %>% 
+          select_("ID", "timeofday", "weekday", input$heatmapvar) %>%
+          group_by_("ID") %>%
+          mutate_at(input$heatmapvar, .funs = funs(normalize)) %>%
+          ungroup() %>%
+          group_by_("ID", input$heatmapstrat) %>%
+          summarise_all(countna) %>%
+          left_join(stratify_vars1.4$df2, by="ID")
+      }
+    }
+    
+  })
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  heatmap_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$heatmap1, ignoreInit = T, {
+    if (heatmap_dummy$l==0) {heatmap_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    heatmap_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$heatmap_instr <-  renderText(
+    if(heatmap_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  output$heatmap <- renderPlotly({
+    
+    input$heatmap1
+    input$go
+    
+    isolate(
+      
+      if(heatmap_dummy$l==0) NULL
+      
+      else {
+        
+        if (varorder1.4$l  %in% c("None", "Compliance")) {
+          
+          ggplotly(ggplot(heatmapdata$l) + 
+                     geom_tile(aes_string(y="ID", x=factor("All"), fill=input$heatmapvar)) +
+                     labs(y="", x="", title=input$heatmapvar, fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("heatmapdata$l$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+          )
+        }
+        
+        else {
+          
+          ggplotly(ggplot(heatmapdata$l, aes_string(label=varorder1.4$l)) + 
+                     geom_tile(aes_string(y="ID", x=factor("All"), fill=input$heatmapvar)) +
+                     labs(y="", x="", title=input$heatmapvar, fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("heatmapdata$l$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+                   
+          )
+        } 
+      }
+    )
+  })
+  
+  
+  ##Code for timeofday/weekday heatmap
+  output$heatmapTOD <- renderPlotly({
+    
+    input$heatmap1
+    input$go
+    
+    isolate(
+      
+      if(heatmap_dummy$l==0) NULL
+      
+      else {
+        
+        if (varorder1.4$l  %in% c("None", "Compliance")) {
+          
+          ggplotly(ggplot(heatmapdata$m) + 
+                     geom_tile(aes_string(x=input$heatmapstrat, y="ID", fill=input$heatmapvar)) +
+                     labs(x="", y="Subject ID", title=paste0(input$heatmapvar, " ", input$heatmapstrat), fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_x_discrete(limits = levels(eval(parse(text=paste0("heatmapdata$m$", input$heatmapstrat))))) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("heatmapdata$m$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+                   
+          ) 
+        }
+        
+        else {
+          
+          ggplotly(ggplot(heatmapdata$m, aes_string(label=varorder1.4$l)) + 
+                     geom_tile(aes_string(x=input$heatmapstrat, y="ID", fill=input$heatmapvar)) +
+                     labs(x="", y="Subject ID", title=paste0(input$heatmapvar, " ", input$heatmapstrat), fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_x_discrete(limits = levels(eval(parse(text=paste0("heatmapdata$m$", input$heatmapstrat))))) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("heatmapdata$m$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+          )
+        }
+      }
+    )
+  })
+  
+
+#6d) Response histogram--------------------------------------------------------------------------------------------------
+  remove_vars2.1 <- c("ID", "day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  remove_vars2.1_2 <- c("ID", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+
+  helper2.1 <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$helper2.1button, ignoreInit = T, { withProgress(message = 'Loading Helper Table', {
+    
+    if(is.null(dataset_all$l)|is.null(input$rhistvar)|is.null(stratify_vars$df_full)) {NULL}
+    
+    else {
+    
+    helper2.1$l <-
+      
+      if (is.numeric(dataset_all$l[[input$rhistvar]])) {
+      
+      helpertable(stratify_vars$df_full, sym(input$rhistvar))
+      
+      
+      }
+    
+      else {NULL}
+    
+    helper2.1$m <- paste0("Spearman Cor. for ", input$rhistvar)
+      
+  }
+    
+  })
+    
+  })
+  
+  #helper title
+  output$helper2.1title <- renderText(helper2.1$m)
+  
+  #reset table on dataset change
+  
+  observeEvent(input$go, ignoreInit = T, {
+    
+    helper2.1$l <- NULL
+    
+    helper2.1$m <- NULL
+    
+  })
+  
+  
+  ##helpertable for histogram
+  output$table3 <- DT::renderDataTable(helper2.1$l, selection = list(selected = 1, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  
+  #change color selection automatically on helper selection
+  
+  observeEvent(input$table3_rows_selected, {
+    
+    rhistvariables$color <- helper2.1$l[["variable"]][[input$table3_rows_selected]]
+  
+     })
+  
+  
+  #Select main variable
+  output$rhistvar <- renderUI({selectInput('rhistvar', 'Main Variable:', names(dataset_all$l)[! names(dataset_all$l) %in% remove_vars2.1], selected = rhistvariables$var, selectize=TRUE)})
+   
+  #Select coloring variable
+  output$rhistcolor <- renderUI({selectInput('rhistcolor', 'Color By:', c("None", varnames2.1$df[! varnames2.1$df %in% remove_vars2.1_2]), selected = rhistvariables$color, selectize=TRUE)})
+  
+  
+  #hist color variable
+  varcolor2.1 <- reactiveValues(l="ID")
+  
+  observeEvent(input$rhist1, {if (input$rhistcolor %in% c("ID", "None")) {varcolor2.1$l <- input$rhistcolor}
+    else {varcolor2.1$l <- paste0(input$rhistcolor, "_s")} 
+  })
+  
+  # output$boxselectR <- renderUI({selectInput('boxselectR', 'Stratify by:', c("None", varnames$l), selectize=TRUE)})
+  
+  
+  ##Use varnames so updating stratify_vars3.1$df2 doesn't refresh subbrowsecolor
+  varnames2.1 <- reactiveValues(df=NULL)
+  
+  
+  ##Color datasets
+  stratify_vars2.1 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Default datasets
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars2.1$df <- stratify_vars$df_full %>% select("ID", "timeindex") %>% mutate(dummy_s=1)
+    stratify_vars2.1$df2 <- stratify_vars2.1$df
+    
+    varnames2.1$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  
+  ##create the appropriate stratify_vars2.1$df 
+  observeEvent(input$rhist1, {
+    
+    if(!input$rhistcolor %in% c("ID", "None")) {
+      stratify_vars2.1$df <- stratify_vars$df_full %>% select_("ID", "timeindex", input$rhistcolor)
+      
+    }
+    
+    else {stratify_vars2.1$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s = 1)}
+    
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars2.1$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$rhist1, ignoreInit = T, {
+    
+    stratify_vars2.1$df2 <-  
+      
+      
+      if(input$rhistcolor %in% c("ID", "None")) {stratify_vars2.1$df}
+    
+    else {
+      if(input$rhistradio %in% "Auto"){
+        stratify_vars2.1$df %>% 
+          mutate_at(input$rhistcolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {as.character(my_ntiles(x, input$rhistntile))}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {as.character(factor(x, ordered = T, exclude = c(NA, "NaN")))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$rhistcolor), ~ paste0(input$rhistcolor, "_s"))
+      }
+      
+      
+  
+      else if (input$rhistradio %in% "On"){
+        stratify_vars2.1$df %>% 
+          mutate_at(input$rhistcolor, ~my_ntiles(.x, input$rhistntile)) %>%
+          rename_at(vars(input$rhistcolor), ~ paste0(input$rhistcolor, "_s"))
+        
+      }
+      
+      else if (input$rhistradio %in% "Off"){
+        stratify_vars2.1$df %>% 
+          mutate_at(input$rhistcolor, as.character) %>%
+          rename_at(vars(input$rhistcolor), ~ paste0(input$rhistcolor, "_s"))
+        
+      }
+    }
+    
+  })
+  
+  
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  
+  rhistvariables <- reactiveValues(var = "ID", color = "None")
+  
+  
+  #Default hist variable
+  observeEvent(input$go, priority = -1, {
+    
+    rhistvariables$var <- names(dataset_all$l)[! names(dataset_all) %in% remove_vars2.1][[sample(1:length(names(dataset_all$l)[! names(dataset_all) %in% remove_vars2.1]), 1)]]
+    
+  })
+  
+  rhistrandbutton <- reactiveValues(r1=NULL)
+  
+  observeEvent(input$rhistrandom, priority = 2, ignoreInit = T, {
+    
+    rhistrandbutton$r1 <- sample(1:length(names(dataset_all$l)[! names(dataset_all) %in% remove_vars2.1]), 1)
+    
+    rhistrandbutton$r2 <- sample(1:length(varnames2.1$df[! varnames2.1 %in% remove_vars2.1_2]), 1)
+    
+    
+    if("Main Var." %in% input$rhistrand_choice) {rhistvariables$var <- names(dataset_all$l)[! names(dataset_all) %in% remove_vars2.1][[rhistrandbutton$r1]]}
+    
+    if("Color Var." %in% input$rhistrand_choice) {rhistvariables$color <- varnames2.1$df[! varnames2.1 %in% remove_vars2.1_2][[rhistrandbutton$r2]]}
+    
+  })
+  
+  
+  ##Data for response hists
+  
+  rhistdata <- reactiveValues(l=NULL, m=NULL)
+  
+  
+  missinghist <- function(x) {ifelse(is.na(x), 1, NA)}
+  
+  observeEvent(input$rhist1, ignoreInit = T, {
+    
+    rhistdata$l <- 
+      dataset_all$l %>% 
+      select_("ID", "timeindex", input$rhistvar) %>%
+      #mutate_at(input$rhistvar, as.factor) %>%
+      left_join(stratify_vars2.1$df2) %>%
+      filter(!is.na((!!sym(input$rhistvar)))) 
+    
+    
+    rhistdata$m <-
+      dataset_all$l %>% 
+      select_("ID", "timeindex", input$rhistvar) %>%
+      #mutate_at(input$rhistvar, as.factor) %>%
+      left_join(stratify_vars2.1$df2) %>% 
+      mutate_at(input$rhistvar, funs(na=missinghist)) %>%
+      filter(!is.na(na))
+    
+    
+  })
+  
+  #output$test1 <- renderText(paste0("dataset_all: ", length(rhistdata$l))
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  rhist_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$rhist1, ignoreInit = T, {
+    if (rhist_dummy$l==0) {rhist_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    rhist_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$rhist_instr <-  renderText(
+    if(rhist_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  ##code for histogram
+  
+  output$histR <- renderPlotly({ 
+    
+    input$rhist1
+    input$go
+    
+    isolate(
+      
+      if(rhist_dummy$l==0) NULL
+      
+      else {
+      
+      if(length(unique(rhistdata$l[[input$rhistvar]])) > 20) {
+        
+        #for character variables with unique length > 20
+        if(is.character(rhistdata$l[[input$rhistvar]])) {
+          
+          if(varcolor2.1$l %in% c("ID", "None")) {
+            
+            ggplotly(ggplot(data=rhistdata$l, aes_string(x=input$rhistvar)) +
+                       geom_bar(color = "blue", fill = "blue", stat = "count") +
+                       scale_x_discrete() +
+                       theme_bw()) 
+          }
+          
+          else{
+            
+            ggplotly(ggplot(data=rhistdata$l, aes_string(x=input$rhistvar, fill = varcolor2.1$l, color = varcolor2.1$l)) +
+                       geom_bar(stat = "count") +
+                       scale_x_discrete() +
+                       theme_bw() +
+                       facet_wrap(as.formula(paste("~", varcolor2.1$l)), scales = 'free_y')) 
+            
+          }
+          
+        }
+        
+        else {
+          
+          #for continous variables with unique length > 20
+          if(varcolor2.1$l %in% c("ID", "None")) {
+          
+            ggplotly(ggplot(data=rhistdata$l, aes_string(x=input$rhistvar)) +
+                      geom_histogram(color = "blue", fill = "blue") +
+                      theme_bw()) 
+          }
+        
+          else{
+          
+            ggplotly(ggplot(data=rhistdata$l, aes_string(x=input$rhistvar, fill = varcolor2.1$l, color = varcolor2.1$l)) +
+                      geom_histogram() +
+                      theme_bw() +
+                      facet_wrap(as.formula(paste("~", varcolor2.1$l)), scales = 'free_y')) 
+          
+          }
+        }
+      }
+        
+      else {
+      
+        #for variables with unique length < 20
+        if(varcolor2.1$l %in% c("ID", "None")) {
+        
+          ggplotly(ggplot(data=rhistdata$l, aes(x=as.factor(!!sym(input$rhistvar)))) +
+                   geom_bar(color = "blue", fill = "blue", stat = "count") +
+                   scale_x_discrete() +
+                   labs(x = input$rhistvar) +
+                   #theme(axis.text.x = element_text(angle = 90)) + 
+                   theme_bw()) 
+                                           
+        }
+      
+        else{
+        
+        ggplotly(ggplot(data=rhistdata$l, aes(x=as.factor(!!sym(input$rhistvar)), fill = !!sym(varcolor2.1$l), color = !!sym(varcolor2.1$l)))+
+                   geom_bar(stat = "count") +
+                   scale_x_discrete() +
+                   labs(x = input$rhistvar) +
+                   #theme(axis.text.x = element_text(angle = 90)) + 
+                   theme_bw() +
+                   facet_wrap(as.formula(paste("~", varcolor2.1$l)), scales = 'free_y'))
+        
+        }
+      }
+    }
+    )
+    
+  })
+  
+  ##code for missing hist
+  
+  output$missinghistR <- renderPlotly({ 
+    
+    input$rhist1
+    input$go
+    
+    
+    isolate(
+      
+      if(rhist_dummy$l==0) NULL
+      
+      else {
+        
+        
+        if(varcolor2.1$l %in% c("ID", "None")) {
+          
+          ggplotly(ggplot(data=rhistdata$m, aes_string(x="na")) +
+                     geom_bar(color = "blue", fill = "blue", position = "dodge", stat = "count") +
+                     scale_x_discrete() +
+                     theme_bw() +
+                     coord_flip())
+        }
+        
+        else{
+          
+          ggplotly(ggplot(data=rhistdata$m, aes_string(x="na", fill = varcolor2.1$l, color = varcolor2.1$l)) +
+                     geom_bar(position = "dodge", stat = "count") +
+                     scale_x_discrete() +
+                     theme_bw()+ 
+                     coord_flip())
+          
+        }
+      }
+    )
+    
+  })
+  
+  
+
+  #6e) Response boxplot:-----------------------------------------------------------------------------------------------------
+ 
+  remove_vars2.2 <- c("ID", "day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+
+  
+  helper2.2 <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$helper2.2button, ignoreInit = T, { withProgress(message = 'Loading Helper Table', {
+    
+    if(is.null(dataset_all$l)|is.null(input$rboxplotvar)|is.null(stratify_vars$df_full)) {NULL}
+    
+    else {
+      
+      helper2.2$l <-
+        
+        if (is.numeric(dataset_all$l[[input$rboxplotvar]])) {
+          
+          helpertable(stratify_vars$df_full, sym(input$rboxplotvar))
+          
+          
+        }
+      
+      else {NULL}
+      
+      helper2.2$m <- paste0("Spearman Cor. for ", input$rboxplotvar)
+      
+    }
+    
+  })
+    
+  })
+  
+  #helper title
+  output$helper2.2title <- renderText(helper2.2$m)
+  
+  #reset table when dataset changes
+  observeEvent(input$go, ignoreInit = T, {
+    
+    helper2.2$l <- NULL
+    
+    helper2.2$m <- NULL
+    
+  })
+  
+  ##helpertable for histogram
+  output$table4 <- DT::renderDataTable(helper2.2$l, selection = list(selected = 1, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  
+  #change color selection automatically on helper selection
+  
+  observeEvent(input$table4_rows_selected, {
+    
+    rboxplotvariables$color <- helper2.2$l[["variable"]][[input$table4_rows_selected]]
+    
+  })
+  
+  
+  
+  #Select main variable
+  output$rboxplotvar <- renderUI({selectInput('rboxplotvar', 'Main Variable:', names(dataset$l)[! names(dataset$l) %in% remove_vars2.2], selected = rboxplotvariables$var, selectize=TRUE)})
+  
+  
+  
+  #Select coloring variable
+  output$rboxplotcolor <- renderUI({selectInput('rboxplotcolor', 'Color By:', c("None", varnames2.2$df[! varnames2.2$df %in% remove_vars2.2]), selected = rboxplotvariables$color, selectize=TRUE)})
+  
+  
+  #boxplot color variable
+  varcolor2.2 <- reactiveValues(l="ID")
+  
+  observeEvent(input$rboxplot1, {if (input$rboxplotcolor %in% c("ID", "None")) {varcolor2.2$l <- input$rboxplotcolor}
+    else {varcolor2.2$l <- paste0(input$rboxplotcolor, "_s")} 
+  })
+  
+ # output$boxselectR <- renderUI({selectInput('boxselectR', 'Stratify by:', c("None", varnames$l), selectize=TRUE)})
+  
+
+  ##Use varnames so updating stratify_vars3.1$df2 doesn't refresh subbrowsecolor
+  varnames2.2 <- reactiveValues(df=NULL)
+  
+  
+  ##Color datasets
+  stratify_vars2.2 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Default datasets
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars2.2$df <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_s=1)
+    stratify_vars2.2$df2 <- stratify_vars2.2$df
+    
+    varnames2.2$df <- names(stratify_vars$df_full)
+    
+    
+  })
+
+  
+  ##create the appropriate stratify_vars2.2$df 
+  observeEvent(input$rboxplot1, {
+    
+    if(!input$rboxplotcolor %in% c("ID", "None")) {
+      stratify_vars2.2$df <- stratify_vars$df_full %>% select_("ID", input$rboxplotcolor) %>%
+        group_by(ID) %>%
+        summarise_at(input$rboxplotcolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                      ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup() 
+    }
+    
+    else {stratify_vars2.2$df <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)}
+    
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars2.2$df2 will update based on variable and quantile selection
+
+  observeEvent(input$rboxplot1, ignoreInit = T, {
+    
+    stratify_vars2.2$df2 <-  
+    
+    
+    if(input$rboxplotcolor %in% c("ID", "None")) {stratify_vars2.2$df}
+    
+    else {
+      if(input$rboxplotradio %in% "Auto"){
+        stratify_vars2.2$df %>% 
+          mutate_at(input$rboxplotcolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {my_ntiles(x, input$rboxplotntile)}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {factor(x, ordered = T, exclude = c(NA, "NaN"))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$rboxplotcolor), ~ paste0(input$rboxplotcolor, "_s"))
+      }
+      
+      else if (input$rboxplotradio %in% "On"){
+        stratify_vars2.2$df %>% 
+          mutate_at(input$rboxplotcolor, ~my_ntiles(.x, input$rboxplotntile)) %>%
+          rename_at(vars(input$rboxplotcolor), ~ paste0(input$rboxplotcolor, "_s"))
+        
+      }
+      
+      else if (input$rboxplotradio %in% "Off"){
+        stratify_vars2.2$df %>% 
+          rename_at(vars(input$rboxplotcolor), ~ paste0(input$rboxplotcolor, "_s"))
+        
+      }
+    }
+    
+  })
+
+  
+  #Random plot
+
+  #make plot update after new variables are selected
+  
+  rboxplotvariables <- reactiveValues(var = "ID", color = "None")
+  
+  #Default boxplot variable
+  observeEvent(input$go, priority = -1, {
+    
+    rboxplotvariables$var <- names(dataset$l)[! names(dataset$l) %in% remove_vars2.2][[sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars2.2]), 1)]]
+    
+  })
+  
+  rboxplotrandbutton <- reactiveValues(r1=NULL, r2=NULL)
+  
+  observeEvent(input$rboxplotrandom, priority = 2, ignoreInit = T, {
+    
+    rboxplotrandbutton$r1 <- sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars2.2]), 1)
+    
+    rboxplotrandbutton$r2 <- sample(1:length(varnames2.2$df[! varnames2.2$df %in% remove_vars2.2]), 1)
+
+    
+    if("Main Var." %in% input$rboxplotrand_choice) {rboxplotvariables$var <- names(dataset$l)[! names(dataset$l) %in% remove_vars2.2][[rboxplotrandbutton$r1]]}
+    
+    if("Color Var." %in% input$rboxplotrand_choice) {rboxplotvariables$color <- varnames2.2$df[! varnames2.2$df %in% remove_vars2.2][[rboxplotrandbutton$r2]]}
+    
+  })
+
+  
+  ##Data for response boxplots
+  
+  rboxplotdata <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$rboxplot1, ignoreInit = T, {
+  
+    
+    rboxplotdata$l <- 
+      dataset_all$l %>% 
+      select_("ID", "timepoint", input$rboxplotvar) %>%
+      group_by_("ID") %>%
+      summarise_all(mymean) %>%
+      left_join(stratify_vars2.2$df2, by="ID")
+    
+    #time of day boxplot
+    rboxplotdata$m <- 
+      dataset_all$l %>% 
+      select_("ID", "timepoint", "timeofday", input$rboxplotvar) %>%
+      group_by_("ID", "timeofday") %>%
+      summarise_all(mymean)
+      
+    })
+  
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  rboxplot_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$rboxplot1, ignoreInit = T, {
+    if (rboxplot_dummy$l==0) {rboxplot_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    rboxplot_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$rboxplot_instr <-  renderText(
+    if(rboxplot_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  
+  ##Main boxplot code
+  output$boxplot_dR <- renderPlotly({
+    
+    input$rboxplot1
+    input$go
+    
+    isolate(
+      
+      if(rboxplot_dummy$l==0) NULL
+      
+      else {
+        
+        if (varcolor2.2$l  %in% "None") {
+          
+          ggplotly(ggplot(data=rboxplotdata$l, aes_string(x=factor(0),
+                                                          y=input$rboxplotvar,
+                                                          label="ID"))+ 
+                     geom_boxplot(size=.5, fatten=1)+
+                     geom_jitter(alpha=0.2, size=1.2, shape=19, position = position_jitter(w = 0.5, h = 0.1))+
+                     stat_summary(fun.data = mean_cl_normal, geom="pointrange", size=2, alpha=.8, 
+                                  position=position_dodge(width=0.75), shape=4, color="firebrick")+
+                     labs(y=NULL, x=NULL, title=input$rboxplotvar)+
+                     theme_bw()+
+                     theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8), 
+                           axis.text.x = element_text(size=10, vjust = 1, color="gray65"), 
+                           axis.text.y = element_blank(),
+                           axis.line = element_line(color="gray65", size=0.5),
+                           axis.ticks.y = element_blank(),
+                           axis.ticks.x = element_line(colour = "gray"),
+                           panel.grid.major = element_blank(), 
+                           panel.grid.minor = element_blank(), 
+                           panel.background = element_blank(),
+                           panel.border = element_blank(),
+                           #plot.margin = unit( c(0,3,3,0) , "in"),
+                           aspect.ratio = 0.3) +
+                     #legend.position="none")+
+                     coord_flip()
+                   #coord_flip(ylim=c(0, max(boxdata_dR()[4])), expand = c(0.1,0))+
+                   #scale_y_continuous(breaks=seq(0, max(boxdata_dR()[2]), by = 4))
+          )
+        }
+        
+        else {  
+          
+          ggplotly(ggplot(data=rboxplotdata$l, aes_string(x=varcolor2.2$l ,
+                                                          y=input$rboxplotvar,
+                                                          label="ID", color=varcolor2.2$l))+ 
+                     geom_boxplot(size=.5, fatten=1)+
+                     geom_jitter(alpha=0.2, size=1.2, shape=19, position = position_jitter(w = 0.5, h = 0.1))+
+                     stat_summary(fun.data = mean_cl_normal, geom="pointrange", size=2, alpha=.8, 
+                                  position=position_dodge(width=0.75), shape=4, color="firebrick")+
+                     #stat_summary(fun.data = give.n, geom = "text", color="firebrick", size=4) +
+                     labs(y=NULL, x=NULL, title=input$rboxplotvar)+
+                            theme_bw()+
+                            theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8), 
+                                  axis.text.x = element_text(size=10, vjust = 1, color="gray65"), 
+                                  axis.text.y = element_text(size=10),
+                                  axis.line = element_line(color="gray65", size=0.5),
+                                  axis.ticks.y = element_blank(),
+                                  axis.ticks.x = element_line(colour = "gray"),
+                                  panel.grid.major = element_blank(), 
+                                  panel.grid.minor = element_blank(), 
+                                  panel.background = element_blank(),
+                                  panel.border = element_blank(),
+                                  plot.margin = unit( c(0.5,0.5,0.5,1) , "cm"),
+                                  aspect.ratio = 0.3)+
+                            coord_flip()
+                          #coord_flip(ylim=c(0, max(boxdata_dR()[4])), expand = c(0.1,0))+
+                          #scale_y_continuous(breaks=seq(0, max(boxdata_dR()[2]), by = 4))
+                     )
+          
+          
+        }
+      }
+      
+    )
+    
+  })
+  
+  
+  ##Timeofday boxplot code
+  
+  output$boxplotR <- renderPlotly({
+    
+    input$rboxplot1
+    input$go
+    
+    isolate(
+      
+      if(rboxplot_dummy$l==0) NULL
+      
+      else {
+        
+        ggplotly(ggplot(data=rboxplotdata$m, aes_string(x="timeofday", 
+                                                        y=input$rboxplotvar, 
+                                                        color="timeofday", label="ID"))+
+                   geom_boxplot(size=.5, fatten=1)+
+                   geom_jitter(alpha=0.2, size=1.2, shape=19, position = position_jitter(w = 0.5, h = 0.1))+
+                   stat_summary(fun.data = mean_cl_normal, geom="pointrange", size=2, alpha=.8, 
+                                position=position_dodge(width=0.75), shape=4, color="firebrick")+
+                   labs(y=NULL, x=NULL, title="")+
+                   scale_x_discrete(limits = rev(levels(rboxplotdata$m[["timeofday"]])))+
+                   theme_bw()+
+                   theme(axis.title.x=element_blank(), axis.title.y=element_text(size=8), 
+                         axis.text.x = element_text(size=10, vjust = 1, color="gray65"), 
+                         axis.text.y = element_text(size=10),
+                         axis.line = element_line(color="gray65", size=0.5),
+                         axis.ticks.y = element_blank(),
+                         axis.ticks.x = element_line(colour = "gray"),
+                         panel.grid.major = element_blank(), 
+                         panel.grid.minor = element_blank(), 
+                         panel.background = element_blank(),
+                         panel.border = element_blank(),
+                         #plot.margin = unit( c(0,3,3,0) , "in"),
+                         aspect.ratio = 0.2,
+                         legend.position="none") +
+                   coord_flip()
+                 # scale_y_continuous(breaks=c(0:max(boxdataR()[3])))
+        )
+        
+      }
+      
+    )
+    
+  })
+ 
+  #6f) Response heatmap-----------------------------------------------------------------------------------------------------
+  remove_vars2.3 <- c("ID", "day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  remove_vars2.3_2 <- c("day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  
+  
+  helper2.3 <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$helper2.3button, ignoreInit = T, { withProgress(message = 'Loading Helper Table', {
+    
+    if(is.null(dataset_all$l)|is.null(input$rhistvar)|is.null(stratify_vars$df_full)) {NULL}
+    
+    else {
+      
+      helper2.3$l <-
+        
+        if (is.numeric(dataset_all$l[[input$rhistvar]])) {
+          
+          helpertable(stratify_vars$df_full, sym(input$rhistvar))
+          
+          
+        }
+      
+      else {NULL}
+      
+      helper2.3$m <- paste0("Spearman Cor. for ", input$rheatmapvar)
+      
+    }
+    
+  })
+    
+  })
+  
+  #helper title
+  output$helper2.3title <- renderText(helper2.3$m)
+  
+  observeEvent(input$go, ignoreInit = T, {
+    
+    helper2.3$l <- NULL
+    
+    helper2.3$m <- NULL
+    
+  })
+  
+  
+  ##helpertable for histogram
+  output$table5 <- DT::renderDataTable(helper2.3$l, selection = list(selected = 1, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  
+  #change color selection automatically on helper selection
+  
+  observeEvent(input$table5_rows_selected, {
+    
+    rheatmapvariables$order <- helper2.3$l[["variable"]][[input$table5_rows_selected]]
+    
+  })
+  
+  
+  
+  #Select main variable
+  output$rheatmapvar <- renderUI({selectInput('rheatmapvar', 'Main Variable:', names(dataset$l)[! names(dataset$l) %in% remove_vars2.3], selected = rheatmapvariables$var, selectize=TRUE)})
+  
+  
+  
+  #Select ordering variable
+  output$rheatmaporder <- renderUI({selectInput('rheatmaporder', 'Order By:', c("None", "Response", varnames2.3$df[! varnames2.3$df %in% remove_vars2.3_2]), selected = rheatmapvariables$order, selectize=TRUE)})
+  
+  
+  #heatmap order variable
+  varorder2.3 <- reactiveValues(l="ID")
+  
+  observeEvent(input$rheatmap1, {if (input$rheatmaporder %in% c("ID", "None", "Response")) {varorder2.3$l <- input$rheatmaporder}
+    else {varorder2.3$l <- paste0(input$rheatmaporder, "_s")} 
+  })
+  
+  
+  ##Use varnames so updating stratify_vars3.1$df2 doesn't refresh subbrowseorder
+  varnames2.3 <- reactiveValues(df=NULL)
+  
+  
+  ##order datasets
+  stratify_vars2.3 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Default datasets
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars2.3$df <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_s=1)
+    stratify_vars2.3$df2 <- stratify_vars2.3$df
+    
+    varnames2.3$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  
+  ##create the appropriate stratify_vars2.3$df 
+  observeEvent(input$rheatmap1, {
+    
+    if(!input$rheatmaporder %in% c("ID", "None", "Response")) {
+        stratify_vars2.3$df <- stratify_vars$df_full %>% select_("ID", input$rheatmaporder) %>%
+          group_by(ID) %>%
+          summarise_at(input$rheatmaporder, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                      ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup() 
+      }
+    
+    else {stratify_vars2.3$df <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)}
+    
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars2.2$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$rheatmap1, ignoreInit = T, {
+    
+    stratify_vars2.3$df2 <-  
+      
+      if(input$rheatmaporder %in% c("None", "Response")) {stratify_vars2.3$df}
+    
+      else {stratify_vars2.3$df %>% 
+            rename_at(vars(input$rheatmaporder), ~ paste0(input$rheatmaporder, "_s"))
+      
+    }
+  })
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  rheatmapvariables <- reactiveValues(var = "ID", order = "Response")
+  
+  #default heatmap var
+  observeEvent(input$go, priority = -1, {
+   
+  rheatmapvariables$var <- names(dataset$l)[! dataset$l %in% remove_vars2.3][[sample(1:length(names(dataset$l)[! dataset$l %in% remove_vars2.3]), 1)]]
+  
+  })
+  
+  
+  
+  rheatmaprandbutton <- reactiveValues(r1=NULL, r2=NULL)
+  
+  observeEvent(input$rheatmaprandom, priority = 2, ignoreInit = T, {
+    
+    rheatmaprandbutton$r1 <- sample(1:length(names(dataset$l)[! dataset$l %in% remove_vars2.3]), 1)
+    
+    rheatmaprandbutton$r2 <- sample(1:length(varnames2.3$df[! varnames2.3$df %in% remove_vars2.3_2]), 1)
+    
+    
+    if("Main Var." %in% input$rheatmaprand_choice) {rheatmapvariables$var <- names(dataset$l)[! dataset$l %in% remove_vars2.3][[rheatmaprandbutton$r1]]}
+    
+    if("Order Var." %in% input$rheatmaprand_choice) {rheatmapvariables$order <- varnames2.3$df[! varnames2.3$df %in% remove_vars2.3_2][[rheatmaprandbutton$r2]]}
+    
+  })
+  
+  
+  ##Data for response boxplots
+  
+  rheatmapdata <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$rheatmap1, ignoreInit = T, {
+    
+    #Main heatmap
+    
+    rheatmapdata$l <-   
+    
+    if(input$rheatmaporder %in% "None"){
+    
+        dataset_all$l %>% 
+          select_("ID", "timepoint", input$rheatmapvar) %>%
+          group_by_("ID") %>%
+          summarise_all(mymean) %>%
+          left_join(stratify_vars2.3$df2, by="ID")
+        
+    }
+    
+    else if (input$rheatmaporder %in% "Response") {
+      
+      dataset_all$l %>% 
+        select_("ID", "timepoint", input$rheatmapvar) %>%
+        group_by_("ID") %>%
+        summarise_all(mymean) %>%
+        left_join(stratify_vars2.3$df2, by="ID") %>%
+        arrange_(input$rheatmapvar)
+    }
+    
+    else {
+    
+      dataset_all$l %>% 
+        select_("ID", "timepoint", input$rheatmapvar) %>%
+        group_by_("ID") %>%
+        summarise_all(mymean) %>%
+        left_join(stratify_vars2.3$df2, by="ID") %>%
+        arrange_(varorder2.3$l, input$rheatmapvar)
+    }
+    
+    #Time of day plot
+    
+    rheatmapdata$m <- 
+    
+    if (input$rheatmapraw %in% "raw") {
+      
+        dataset_all$l %>% 
+        select_("ID", "timeofday", "weekday", input$rheatmapvar) %>%
+        group_by_("ID", input$rheatmapstrat) %>%
+        summarise_all(mymean) %>%
+        left_join(stratify_vars2.3$df2, by="ID")
+    }
+    
+    else if (input$rheatmapraw %in% "subject normalized") {
+      
+      if (input$rheatmapvar %in% "ID") {
+        
+        dataset_all$l %>% 
+          select_("ID", "timeofday", "weekday", input$rheatmapvar) %>%
+          group_by_("ID", input$rheatmapstrat) %>%
+          summarise_all(mymean) %>%
+          left_join(stratify_vars2.3$df2, by="ID")
+      }
+      
+      else {
+   
+        dataset_all$l %>% 
+        select_("ID", "timeofday", "weekday", input$rheatmapvar) %>%
+        group_by_("ID") %>%
+        mutate_at(input$rheatmapvar, .funs = funs(normalize)) %>%
+        ungroup() %>%
+        group_by_("ID", input$rheatmapstrat) %>%
+        summarise_all(mymean) %>%
+        left_join(stratify_vars2.3$df2, by="ID")
+      }
+    }
+    
+  })
+  
+
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  rheatmap_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$rheatmap1, ignoreInit = T, {
+    if (rheatmap_dummy$l==0) {rheatmap_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    rheatmap_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$rheatmap_instr <-  renderText(
+    if(rheatmap_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  output$heatmapR <- renderPlotly({
+    
+    input$rheatmap1
+    input$go
+    
+    isolate(
+      
+      if(rheatmap_dummy$l==0) NULL
+      
+      else {
+        
+        if (varorder2.3$l  %in% c("None", "Response")) {
+          
+          ggplotly(ggplot(rheatmapdata$l) + 
+                     geom_tile(aes_string(y="ID", x=factor("All"), fill=input$rheatmapvar)) +
+                     labs(y="", x="", title=input$rheatmapvar, fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("rheatmapdata$l$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+          )
+        }
+        
+        else {
+          
+          ggplotly(ggplot(rheatmapdata$l, aes_string(label=varorder2.3$l)) + 
+                     geom_tile(aes_string(y="ID", x=factor("All"), fill=input$rheatmapvar)) +
+                     labs(y="", x="", title=input$rheatmapvar, fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("rheatmapdata$l$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+                   
+          )
+        } 
+      }
+    )
+  })
+  
+  
+  ##Code for timeofday/weekday heatmap
+  output$heatmapTODR <- renderPlotly({
+    
+    input$rheatmap1
+    input$go
+    
+    isolate(
+      
+      if(rheatmap_dummy$l==0) NULL
+      
+      else {
+        
+        if (varorder2.3$l  %in% c("None", "Response")) {
+          
+          ggplotly(ggplot(rheatmapdata$m) + 
+                     geom_tile(aes_string(x=input$rheatmapstrat, y="ID", fill=input$rheatmapvar)) +
+                     labs(x="", y="Subject ID", title=paste0(input$rheatmapvar, " ", input$rheatmapstrat), fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_x_discrete(limits = levels(eval(parse(text=paste0("rheatmapdata$m$", input$rheatmapstrat))))) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("rheatmapdata$m$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+                   
+          ) 
+        }
+        
+        else {
+          
+          ggplotly(ggplot(rheatmapdata$m, aes_string(label=varorder2.3$l)) + 
+                     geom_tile(aes_string(x=input$rheatmapstrat, y="ID", fill=input$rheatmapvar)) +
+                     labs(x="", y="Subject ID", title=paste0(input$rheatmapvar, " ", input$rheatmapstrat), fill="") +
+                     scale_fill_distiller(palette = "RdYlGn", direction = 1) +
+                     scale_x_discrete(limits = levels(eval(parse(text=paste0("rheatmapdata$m$", input$rheatmapstrat))))) +
+                     scale_y_discrete(limits=eval(parse(text=paste0("rheatmapdata$m$ID")))) +
+                     theme_bw() +
+                     theme(plot.margin = margin(t = 30, b = 10),
+                           axis.text.y = element_blank(),
+                           axis.ticks.x = element_blank(),
+                           axis.ticks.y = element_blank(),
+                           axis.title.y = element_blank(),
+                           legend.title = element_blank(),
+                           panel.border = element_blank(),
+                           panel.background = element_blank(),
+                           panel.grid = element_blank())
+          )
+        }
+      }
+    )
+  })
+  
+  
+  
+  
+  
+  
+  #6g) Response trajectory ------------------------------------------------------------------------------
+  remove_vars2.4 <- c("ID", "day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  remove_vars2.4_2 <- c("day", "time", "timepoint", "timeofday", "weekday", "weekday_n", "weektime_n", "timeindex")
+  
+  helper2.4 <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$helper2.4button, ignoreInit = T, { withProgress(message = 'Loading Helper Table', {
+    
+    if(is.null(dataset_all$l)|is.null(input$rtrajvar)|is.null(stratify_vars$df_full)) {NULL}
+    
+    else {
+      
+      helper2.4$l <-
+        
+        if (is.numeric(dataset_all$l[[input$rtrajvar]])) {
+          
+          helpertable(stratify_vars$df_full, sym(input$rtrajvar))
+          
+          
+        }
+      
+      else {NULL}
+      
+      helper2.4$m <- paste0("Spearman Cor. for ", input$rtrajvar)
+      
+    }
+    
+  })
+    
+  })
+  
+  #helper title
+  output$helper2.4title <- renderText(helper2.4$m)
+  
+  #reset helper on dataset change
+  observeEvent(input$go, ignoreInit = T, {
+    
+    helper2.4$l <- NULL
+    
+    helper2.4$m <- NULL
+    
+  })
+  
+  
+  ##helpertable for histogram
+  output$table6 <- DT::renderDataTable(helper2.4$l, selection = list(selected = 1, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  
+  #change color selection automatically on helper selection
+  
+  observeEvent(input$table6_rows_selected, {
+    
+    rtrajvariables$color <- helper2.4$l[["variable"]][[input$table6_rows_selected]]
+    
+  })
+  
+  
+  
+  
+  #Select main variable
+  output$rtrajvar <- renderUI({selectInput('rtrajvar', 'Main Variable:', names(dataset$l)[! names(dataset$l) %in% remove_vars2.4], selected = rtrajvariables$var, selectize=TRUE)})
+  
+  
+  #Select coloring variable
+  output$rtrajcolor <- renderUI({selectInput('rtrajcolor', 'Color By:', c("None", varnames2.4$df[! varnames2.4$df %in% remove_vars2.4_2]), selected = rtrajvariables$color, selectize=TRUE)})
+  
+  
+  #traj color variable
+  varcolor2.4 <- reactiveValues(l="ID")
+  
+  observeEvent(input$rtraj1, {if (input$rtrajcolor %in% c("ID", "None", "weekday")) {varcolor2.4$l <- input$rtrajcolor}
+    else {varcolor2.4$l <- paste0(input$rtrajcolor, "_s")} 
+  })
+  
+  # output$boxselectR <- renderUI({selectInput('boxselectR', 'Stratify by:', c("None", varnames$l), selectize=TRUE)})
+  
+  
+  ##Use varnames so updating stratify_vars3.1$df2 doesn't refresh subbrowsecolor
+  varnames2.4 <- reactiveValues(df=NULL)
+  
+  
+  ##Color datasets
+  stratify_vars2.4 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Default color datasets
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars2.4$df <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_s=1)
+    stratify_vars2.4$df2 <- stratify_vars2.4$df
+    
+    varnames2.4$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  
+  ##create the appropriate stratify_vars2.4$df 
+  ##create the appropriate stratify_vars2.2$df 
+  observeEvent(input$rtraj1, {
+    
+    if(!input$rtrajcolor %in% c("ID", "None", "weekday")) {
+      stratify_vars2.4$df <- stratify_vars$df_full %>% select_("ID", input$rtrajcolor) %>%
+        group_by(ID) %>%
+        summarise_at(input$rtrajcolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                 ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup() 
+    }
+    
+    else {stratify_vars2.4$df <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)}
+    
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars2.4$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$rtraj1, ignoreInit = T, {
+    
+    stratify_vars2.4$df2 <-  
+      
+      
+      if(input$rtrajcolor %in% c("ID", "None", "weekday")) {stratify_vars2.4$df}
+    
+    else {
+      if(input$rtrajradio %in% "Auto"){
+        stratify_vars2.4$df %>% 
+          mutate_at(input$rtrajcolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {as.character(my_ntiles(x, input$rtrajntile))}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {as.character(factor(x, ordered = T, exclude = c(NA, "NaN")))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$rtrajcolor), ~ paste0(input$rtrajcolor, "_s"))
+      }
+      
+      
+      
+      else if (input$rtrajradio %in% "On"){
+        stratify_vars2.4$df %>% 
+          mutate_at(input$rtrajcolor, ~my_ntiles(.x, input$rtrajntile)) %>%
+          rename_at(vars(input$rtrajcolor), ~ paste0(input$rtrajcolor, "_s"))
+        
+      }
+      
+      else if (input$rtrajradio %in% "Off"){
+        stratify_vars2.4$df %>% 
+          mutate_at(input$rtrajcolor, as.character) %>%
+          rename_at(vars(input$rtrajcolor), ~ paste0(input$rtrajcolor, "_s"))
+        
+      }
+    }
+    
+
+    
+    
+  })
+  
+  
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  
+  rtrajvariables <- reactiveValues(var = "ID", color = "weekday")
+  
+  
+  #Default traj variable
+  observeEvent(input$go, priority = -1, {
+    
+    rtrajvariables$var <- names(dataset$l)[! names(dataset$l) %in% remove_vars2.4][[sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars2.4]), 1)]]
+    
+  })
+  
+  rtrajrandbutton <- reactiveValues(r1=NULL)
+  
+  observeEvent(input$rtrajrandom, priority = 2, ignoreInit = T, {
+    
+    rtrajrandbutton$r1 <- sample(1:length(names(dataset$l)[! names(dataset$l) %in% remove_vars2.4]), 1)
+    
+    rtrajrandbutton$r2 <- sample(1:length(varnames2.4$df[! varnames2.4 %in% remove_vars2.4_2]), 1)
+    
+    
+    if("Main Var." %in% input$rtrajrand_choice) {rtrajvariables$var <- names(dataset$l)[! names(dataset$l) %in% remove_vars2.4][[rtrajrandbutton$r1]]}
+    
+    if("Color Var." %in% input$rtrajrand_choice) {rtrajvariables$color <- varnames2.4$df[! varnames2.4 %in% remove_vars2.4_2][[rtrajrandbutton$r2]]}
+    
+  })
+  
+  
+  ##Data for response trajs
+  
+  rtrajdata <- reactiveValues(l=NULL, m=NULL)
+  
+  
+  observeEvent(input$rtraj1, ignoreInit = T, {
+    
+    
+    if (input$rtrajraw %in% "Raw" | input$rtrajvar %in% "ID") {
+      
+      rtrajdata$l <- 
+        dataset_all$l %>% 
+        select_("ID", "timepoint", "weekday", "weekday_n", "weektime_n", "day",  input$rtrajvar) %>%
+        left_join(stratify_vars2.4$df2, by="ID") 
+      
+      
+      
+    }
+    
+    else if (input$rtrajraw %in% "Subject Normalized") {
+      
+      rtrajdata$l <- 
+        dataset_all$l %>% 
+        select_("ID", "timepoint", "weekday", "weekday_n", "weektime_n", "day",  input$rtrajvar) %>%
+        group_by_("ID") %>%
+        mutate_at(input$rtrajvar, funs(normalize)) %>%
+        ungroup() %>%
+        left_join(stratify_vars2.4$df2, by="ID") 
+      
+    }
+    
+    
+  })
+
+  
+  #output$test1 <- renderText(names(rtrajdata$m))
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  rtraj_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$rtraj1, ignoreInit = T, {
+    if (rtraj_dummy$l==0) {rtraj_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    rtraj_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$rtraj_instr <-  renderText(
+    if(rtraj_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  ##code for trajogram
+  
+  output$trajR <- renderPlotly({ 
+    
+    input$rtraj1
+    input$go
+    
+    
+    isolate(
+      
+      if(rtraj_dummy$l==0) NULL
+      
+      else {
+        
+        if(input$rtrajtraces %in% "Group Means") {
+          
+          if(input$rtrajaxis %in% "weektime_n") {
+            
+            if(varcolor2.4$l %in% c("ID", "None", "weekday")) {
+              
+              ggplotly(ggplot(rtrajdata$l, aes_string(x=input$rtrajaxis, y=input$rtrajvar, color = "weekday")) +
+                         labs(title = input$rtrajvar) +
+                         #stat_summary(fun.y = mean,
+                         #fun.ymin = function(x) mean(x) - sd(x),
+                         #fun.ymax = function(x) mean(x) + sd(x),
+                         #geom = "pointrange", size = .3)+
+                         stat_summary(fun.data = mean_cl_normal, geom = "pointrange", size = 1, alpha = 0.7)+
+                         stat_summary(fun.y = mean,
+                                      geom = "line", size = 1, alpha = 0.7) +
+                         
+                         #scale_x_discrete(limits=c(7:22))+
+                         theme_bw(base_size = 14) +
+                         theme(panel.grid = element_blank()))
+            }
+            
+            else{
+              
+              ggplotly(ggplot(rtrajdata$l, aes_string(x=input$rtrajaxis, y=input$rtrajvar, color = varcolor2.4$l)) +
+                         labs(title = input$rtrajvar) +
+                         #stat_summary(fun.y = mean,
+                         #fun.ymin = function(x) mean(x) - sd(x),
+                         #fun.ymax = function(x) mean(x) + sd(x),
+                         #geom = "pointrange", size = .3)+
+                         stat_summary(fun.data = mean_cl_normal, geom = "pointrange", size = 1, alpha = 0.7)+
+                         stat_summary(fun.y = mean,
+                                      geom = "line", size = 1,  alpha = 0.7, mapping = aes_string(linetype = "weekday")) +
+                         
+                         #scale_x_discrete(limits=c(7:22))+
+                         theme_bw(base_size = 14) +
+                         theme(panel.grid = element_blank()))
+              
+              
+            }
+          }
+          
+          else {
+            
+            if(varcolor2.4$l %in% c("None")) {
+              
+              ggplotly(ggplot(rtrajdata$l, aes_string(x=input$rtrajaxis, y=input$rtrajvar)) +
+                         labs(title = input$rtrajvar) +
+                         #stat_summary(fun.y = mean,
+                         #fun.ymin = function(x) mean(x) - sd(x),
+                         #fun.ymax = function(x) mean(x) + sd(x),
+                         #geom = "pointrange", size = .3)+
+                         stat_summary(fun.data = mean_cl_normal, geom = "pointrange", size = 1, alpha = 0.7)+
+                         stat_summary(fun.y = mean,
+                                      geom = "line", size = 1, alpha = 0.7) +
+                         
+                         #scale_x_discrete(limits=c(7:22))+
+                         theme_bw(base_size = 14) +
+                         theme(panel.grid = element_blank()))
+            }
+            
+            else{
+              
+              ggplotly(ggplot(rtrajdata$l, aes_string(x=input$rtrajaxis, y=input$rtrajvar, color = varcolor2.4$l)) +
+                         labs(title = input$rtrajvar) +
+                         #stat_summary(fun.y = mean,
+                         #fun.ymin = function(x) mean(x) - sd(x),
+                         #fun.ymax = function(x) mean(x) + sd(x),
+                         #geom = "pointrange", size = .3)+
+                         stat_summary(fun.data = mean_cl_normal, geom = "pointrange", size = 1, alpha = 0.7)+
+                         stat_summary(fun.y = mean,
+                                      geom = "line", size = 1, alpha = 0.7) +
+                         
+                         #scale_x_discrete(limits=c(7:22))+
+                         theme_bw(base_size = 14) +
+                         theme(panel.grid = element_blank()))
+              
+            }
+          }
+        }
+        
+        else if (input$rtrajtraces %in% "Subject Traces") {
+          
+          if(varcolor2.4$l %in% c("None")) {
+            
+            ggplotly(ggplot(rtrajdata$l, aes_string(x=input$rtrajaxis, y=input$rtrajvar, group = "ID")) +
+                       labs(title = input$rtrajvar) +
+                       #stat_summary(fun.y = mean,
+                       #fun.ymin = function(x) mean(x) - sd(x),
+                       #fun.ymax = function(x) mean(x) + sd(x),
+                       stat_summary(fun.y = mean,
+                                    geom = "line", size = 0.5, alpha = 0.2) +
+                       
+                       #scale_x_discrete(limits=c(7:22))+
+                       theme_bw(base_size = 14) +
+                       theme(panel.grid = element_blank()))
+          }
+          
+          else{
+            
+            ggplotly(ggplot(rtrajdata$l, aes_string(x=input$rtrajaxis, y=input$rtrajvar, group = "ID", color = varcolor2.4$l)) +
+                       labs(title = input$rtrajvar) +
+                       #stat_summary(fun.y = mean,
+                       #fun.ymin = function(x) mean(x) - sd(x),
+                       #fun.ymax = function(x) mean(x) + sd(x),
+                       stat_summary(fun.y = mean,
+                                    geom = "line", size = 0.5,  alpha = 0.2) +
+                       
+                       #scale_x_discrete(limits=c(7:22))+
+                       theme_bw(base_size = 14) +
+                       theme(panel.grid = element_blank()))
+            
+            
+          }
+        }
+      }
+      
+    )
+    
+  })
+  
+  
+  #6h) Response scatterplot-----------------------------------------------------------------------------------------------------
+  
+  helper2.5 <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$helper2.5button, ignoreInit = T, { withProgress(message = 'Loading Helper Table', {
+    
+    if(is.null(dataset_all$l)|is.null(input$scatterplot_x_var)|is.null(stratify_vars$df_full)) {NULL}
+    
+    else {
+      
+      helper2.5$l <-
+        
+        if (is.numeric(dataset_all$l[[input$scatterplot_x_var]])) {
+          
+          helpertable(stratify_vars$df_full, sym(input$scatterplot_x_var))
+          
+          
+        }
+      
+      else {NULL}
+      
+      helper2.5$m <- paste0("Spearman Cor. for ", input$scatterplot_x_var)
+      
+    }
+    
+  })
+    
+  })
+  
+  #helper title
+  output$helper2.5title <- renderText(helper2.5$m)
+  
+  #reset helper on dataset change
+  observeEvent(input$go, ignoreInit = T, {
+    
+    helper2.5$l <- NULL
+    
+    helper2.5$m <- NULL
+    
+  })
+  
+  
+  ##helpertable for histogram
+  output$table7 <- DT::renderDataTable(helper2.5$l, selection = list(selected = 1, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  
+  #change color selection automatically on helper selection
+  
+  observeEvent(input$table7_rows_selected, {
+    
+    scatterplotvariables$y_var <- helper2.5$l[["variable"]][[input$table7_rows_selected]]
+    
+  })
+  
+  ##Select y axis variable:
+  output$scatterplot_y_var <- renderUI({selectInput('scatterplot_y_var', 'Y-Axis Variable:', c(names(dataset_all$l)), selected = scatterplotvariables$y_var, selectize=TRUE)})
+  
+  ##Select x axis variable
+  output$scatterplot_x_var <- renderUI({selectInput('scatterplot_x_var', 'X-Axis Variable:', c(names(dataset_all$l)), selected = scatterplotvariables$x_var, selectize=TRUE)})
+  
+  ##Color/interaction datasets
+  stratify_vars2.5 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Using varnames so updating stratify_vars2.5$df2 doesn't refresh subbrowsecolor
+  varnames2.5 <- reactiveValues(df=NULL)
+  
+  ##Default datasets for color/interaction
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars2.5$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s = 1)
+    stratify_vars2.5$df2 <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s = 1)
+    
+    varnames2.5$df <- names(stratify_vars$df_full)
+    
+  })
+  
+  
+  ##create main dataset with the appropriate level
+  dataset_levels2.5 <- reactiveValues(df = NULL)
+  
+  observeEvent({input$scatterplot1}, priority = 1, ignoreInit = T,  {
+    
+    if (input$scatterplotlevel %in% "Subject") {
+      
+      dataset_levels2.5$df <- dataset_all$l %>% 
+        select_("ID", input$scatterplot_y_var, input$scatterplot_x_var) %>% mutate(dummy=1) %>%
+        group_by(ID) %>%
+        summarise_all(function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup()
+      
+      
+    }
+    
+    
+    else if (input$scatterplotlevel %in% "Day") {
+      
+      dataset_levels2.5$df <- dataset_all$l %>% 
+        select_("ID", "day", input$scatterplot_y_var, input$scatterplot_x_var) %>% mutate(dummy=1) %>%
+        group_by(ID, day) %>%
+        summarise_all(function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup()
+      
+      
+    }
+    
+    else if (input$subbrowselevel %in% "Assessment") {
+      
+      dataset_levels2.5$df <- dataset_all$l %>% select_("ID", "timeindex", "day", input$scatterplot_y_var, input$scatterplot_x_var) %>% mutate(dummy=1)
+    }
+  })
+  
+  
+  ##Level select for color variable, choices depend on level of main dataset
+  
+  output$scatterplotcolorlevel <- renderUI({
+    
+    if (input$scatterplotlevel %in% "Assessment") {
+      radioButtons("scatterplotcolorlevel", "Color Variable Level:", c("Subject", "Day", "Assessment"), selected = "Subject", inline = T)
+    }
+    
+    else if (input$scatterplotlevel %in% "Day") {
+      radioButtons("scatterplotcolorlevel", "Color Variable Level:", c("Subject", "Day"), selected = "Subject", inline = T)
+    }
+    
+    else if (input$scatterplotlevel %in% "Subject") {
+      radioButtons("scatterplotcolorlevel", "Color Variable Level:", c("Subject"), selected = "Subject", inline = T)
+    }
+    
+  })
+  
+  ##Data type select
+  
+  
+  output$scatterplotraw <- renderUI({
+    
+    if (input$scatterplotlevel %in% "Subject") {
+      radioButtons("scatterplotraw", 
+                   label = "Main Variables Type:", 
+                   choices = c("Raw"),
+                   selected = "Raw", inline = T)
+    }
+    
+    else {
+      radioButtons("scatterplotraw", 
+                   label = "Main Variables Type:", 
+                   choices = c("Raw", "Subject Normalized"),
+                   selected = "Subject Normalized", inline = T)
+      
+    }
+    
+  })
+  
+  
+  ##Key variable for each combination of raw/normalized and assessment/day/subject for coloring variable
+  colorvarkey2.5 <- reactive({paste0(input$scatterplotcolortype, "-", input$scatterplotcolorlevel)})
+  
+  ##create the appropriate stratify_vars2.5$df , default color/interaction dataset
+  observeEvent({input$scatterplot1}, priority = 1, ignoreInit = T, {
+    
+    if(!input$scatterplotcolor %in% c("ID", "None")) {
+      
+      if (colorvarkey2.5() %in% "Raw-Subject") {
+        stratify_vars2.5$df <- stratify_vars$df_full %>%
+          group_by(ID) %>%
+          summarise_at(input$scatterplotcolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup()
+        
+      }
+      
+      else if (colorvarkey2.5() %in% "Raw-Day") {
+        stratify_vars2.5$df <- stratify_vars$df_full %>%
+          group_by(ID, day) %>%
+          summarise_at(input$scatterplotcolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup() 
+        
+      }
+      
+      else if (colorvarkey2.5() %in% "Raw-Assessment") {
+        stratify_vars2.5$df <- stratify_vars$df_full %>% select_("ID", "timeindex", input$scatterplotcolor)
+      }
+      
+      else if (colorvarkey2.5() %in% "Subject Normalized-Subject") {
+        stratify_vars2.5$df <-  stratify_vars$df_full %>%
+          group_by(ID) %>%
+          summarise_at(input$scatterplotcolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup() 
+        
+      }
+      
+      else if (colorvarkey2.5() %in% "Subject Normalized-Day") {
+        stratify_vars2.5$df <- stratify_vars$df_full %>%
+          group_by(ID, day) %>%
+          summarise_at(input$scatterplotcolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup() %>% group_by(ID) %>%
+          mutate_at(input$scatterplotcolor, funs(normalize)) %>%
+          ungroup()
+      }
+      
+      else if (colorvarkey2.5() %in% "Subject Normalized-Assessment") {
+        stratify_vars2.5$df <- stratify_vars$df_full %>% select_("ID", "timeindex", input$scatterplotcolor) %>%
+          group_by(ID) %>%
+          mutate_at(input$scatterplotcolor, funs(normalize)) %>%
+          ungroup()
+      }
+      
+    }
+    
+    else {
+      
+      if (colorvarkey2.5() %in% c("Raw-Assessment", "Subject Normalized-Assessment")) {
+        
+        stratify_vars2.5$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s=1)}
+      
+      else if (colorvarkey2.5() %in% c("Raw-Day", "Subject Normalized-Day")) {
+        
+        stratify_vars2.5$df <- stratify_vars$df_full %>% mutate(dummy=1) %>% group_by(ID, day) %>% summarise(dummy_s=mean(dummy))}
+      
+      else if (colorvarkey2.5() %in% c("Raw-Subject", "Subject Normalized-Subject")) {
+        
+        stratify_vars2.5$df <- stratify_vars$df_full %>% mutate(dummy=1) %>% group_by(ID) %>% summarise(dummy_s=mean(dummy))}
+      
+    }
+    
+  })
+  
+  ##Select coloring variable
+  output$scatterplotcolor <- renderUI({selectInput('scatterplotcolor', 'Color By:', c("None", varnames2.5$df), selected=scatterplotvariables$color, selectize=TRUE)})
+  
+  ###varcolor2.5$l is used so selecting color input doesn't automatically update plot
+  varcolor2.5 <- reactiveValues(l="None")
+  
+  observeEvent({input$scatterplotcolor}, ignoreInit = T, { if(input$scatterplotcolor %in% c("ID", "None")) {varcolor2.5$l <- input$scatterplotcolor}
+    else {varcolor2.5$l <- paste0(input$scatterplotcolor, "_s")} 
+  })
+  
+  ##Color variable dataset join vars, depending on level and type
+  df2_join_vars2.5 <- reactive({ if (input$scatterplotcolorlevel %in% "Subject") {c("ID")}
+    else if (input$scatterplotcolorlevel %in% "Day") {c("ID", "day")}
+    else if (input$scatterplotcolorlevel %in% "Assessment") {c("ID", "timeindex")}
+  })
+  
+  
+  ##Color vars dataset, upon action button, stratify_vars2.5$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$scatterplot1, priority = 1, ignoreInit = T, {
+    
+    stratify_vars2.5$df2 <-  
+      
+      if(input$scatterplotcolor %in% c("ID", "None")) {stratify_vars2.5$df}
+    
+    else {
+      if(input$scatterplotradio %in% "Auto"){
+        stratify_vars2.5$df %>% select_(df2_join_vars2.5()[1], df2_join_vars2.5()[length(df2_join_vars2.5())], input$scatterplotcolor) %>%
+          mutate_at(input$scatterplotcolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {my_ntiles(x, input$scatterplotntile)}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {factor(x, ordered = T, exclude = c(NA, "NaN"))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$scatterplotcolor), ~ paste0(input$scatterplotcolor, "_s"))
+      }
+      
+      else if (input$scatterplotradio %in% "On"){
+        stratify_vars2.5$df %>% select_(df2_join_vars2.5()[1], df2_join_vars2.5()[length(df2_join_vars2.5())], input$scatterplotcolor) %>%
+          mutate_at(input$scatterplotcolor, ~my_ntiles(.x, input$scatterplotntile)) %>%
+          rename_at(vars(input$scatterplotcolor), ~ paste0(input$scatterplotcolor, "_s"))
+        
+      }
+      
+      else if (input$scatterplotradio %in% "Off"){
+        stratify_vars2.5$df %>% 
+          select_(df2_join_vars2.5()[1], df2_join_vars2.5()[length(df2_join_vars2.5())], input$scatterplotcolor) %>%
+          rename_at(vars(input$scatterplotcolor), ~ paste0(input$scatterplotcolor, "_s"))
+        
+      }
+    }
+    
+    
+  })
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  
+  scatterplotvariables <- reactiveValues(x_var = "ID", y_var = "ID", color = "None")
+  
+  #default scatterplot vars
+  observeEvent(input$go, priority = -1, {
+    
+    scatterplotvariables$x_var <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+    scatterplotvariables$y_var <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+  })
+  
+  scatterplotrandbutton <- reactiveValues(r1=NULL, r2=NULL, r3=NULL)
+  
+  observeEvent(input$scatterplotrandom, priority = 2, ignoreInit = T, {
+    
+    scatterplotrandbutton$r1 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    scatterplotrandbutton$r2 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    scatterplotrandbutton$r3 <- sample(1:length(varnames2.5$df), 1)
+    
+    
+    if("X-Axis Var." %in% input$scatterplotrand_choice) {scatterplotvariables$x_var <- names(dataset_all$l)[[scatterplotrandbutton$r1]]}
+    
+    if("Y-Axis Var." %in% input$scatterplotrand_choice) {scatterplotvariables$y_var <- names(dataset_all$l)[[scatterplotrandbutton$r1]]}
+    
+    if ("Color Var." %in% input$scatterplotrand_choice) {scatterplotvariables$color <- varnames2.5$df[[scatterplotrandbutton$r3]]}
+    
+    
+  })
+  
+  ##datasets for scatterplot
+  
+  scatterplotdata <- reactiveValues(l=NULL)
+  
+  observeEvent(input$scatterplot1, ignoreInit = T, {
+    
+    scatterplotdata$l <- 
+      
+      if (input$scatterplotraw %in% "Raw" | input$scatterplot_y_var %in% "ID" | input$scatterplot_x_var %in% "ID" ) {
+        
+        dataset_levels2.5$df %>% 
+          left_join(stratify_vars2.5$df2, by=c(df2_join_vars2.5()))
+      }
+    
+    else if (input$scatterplotraw %in% "Subject Normalized") {
+      
+      dataset_levels2.5$df %>% 
+        group_by_("ID") %>%
+        mutate_at(c(input$scatterplot_x_var, input$scatterplot_y_var), funs(normalize)) %>%
+        ungroup() %>%
+        left_join(stratify_vars2.5$df2, by=c(df2_join_vars2.5())) 
+      
+    }
+    
+  })
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  scatterplot_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$scatterplot1, priority = 0, ignoreInit = T, {
+    if (scatterplot_dummy$l==0) {scatterplot_dummy$l <- 1}
+    else NULL
+  })
+  
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    scatterplot_dummy$l <- 0
+    
+  })
+  
+  
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$scatterplot_instr <-  renderText(
+    if(scatterplot_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  
+  ##Scatterplot 
+  
+  output$scatterplot <- renderPlotly({
+    
+    input$scatterplot1
+    input$go
+    
+    isolate(
+      
+      if(scatterplot_dummy$l==0) NULL
+      
+      else{
+        
+        if (varcolor2.5$l %in% "None") {
+          
+          ggplotly(ggplot(scatterplotdata$l, aes_string(x=input$scatterplot_x_var, y=input$scatterplot_y_var, label = "ID")) +
+                     geom_point() +
+                     geom_smooth(method='lm', formula=y~x)+
+                     theme_bw(),  height=800, width=1000) 
+          
+        }
+        
+        else {
+          
+          ggplotly(ggplot(scatterplotdata$l, aes_string(x=input$scatterplot_x_var, y=input$scatterplot_y_var, label = "ID", color = varcolor2.5$l)) +
+                     geom_point() +
+                     geom_smooth(method='lm', formula=y~x)+
+                     theme_bw(), height=800, width=1000)
+          
+        }
+      }
+    )
+  })
+
+  
+  
+  #6i) Subject scatterplot------------------------------------------------------------------------------------------------------------------------------
+  
+  ##Select y axis variable:
+  output$subscatter_y_var <- renderUI({selectInput('subscatter_y_var', 'Y-Axis Variable:', c(names(dataset_all$l)), selected = subscattervariables$y_var, selectize=TRUE)})
+  
+  ##Select x axis variable
+  output$subscatter_x_var <- renderUI({selectInput('subscatter_x_var', 'X-Axis Variable:', c(names(dataset_all$l)), selected = subscattervariables$x_var, selectize=TRUE)})
+  
+  ##Color/interaction datasets
+  stratify_vars3.15 <- reactiveValues(df = NULL, df2 = NULL, df3 = NULL)
+  
+  ##Using varnames so updating stratify_vars3.15$df2 doesn't refresh subbrowsecolor
+  varnames3.15 <- reactiveValues(df=NULL)
+  
+  ##Default datasets for color and order
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars3.15$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s = 1)
+    stratify_vars3.15$df2 <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)
+    stratify_vars3.15$df3 <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_o=1)
+    
+    varnames3.15$df <- names(stratify_vars$df_full)
+    
+  })
+  
+  
+  ##create main dataset with the appropriate level
+  dataset_levels3.15 <- reactiveValues(df = NULL)
+  
+  observeEvent({input$subscatter1}, priority = 1, ignoreInit = T,  {
+    
+    if (input$subscatterlevel %in% "Day") {
+      
+      dataset_levels3.15$df <- dataset_all$l %>% 
+        select_("ID", "day", input$subscatter_y_var, input$subscatter_x_var) %>% mutate(dummy=1) %>%
+        group_by(ID, day) %>%
+        summarise_all(function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup()
+      
+      
+    }
+    
+    else if (input$subbrowselevel %in% "Assessment") {
+      
+      dataset_levels3.15$df <- dataset_all$l %>% select_("ID", "timeindex", input$subscatter_y_var, input$subscatter_x_var) %>% mutate(dummy=1)
+    }
+  })
+  
+  ##Select coloring variable (subject level, can bin into quantiles)
+  output$subscattercolor <- renderUI({selectInput('subscattercolor', 'Color By:', c("None", varnames3.15$df), selected = subscattervariables$color, selectize=TRUE)})
+  
+  ###varcolor3.15$l is used so selecting color input doesn't automatically update plot
+  varcolor3.15 <- reactiveValues(l="None")
+  
+  observeEvent(input$subscatter1, {if (input$subscattercolor %in% c("ID", "None")) {varcolor3.15$l <- input$subscattercolor}
+    else {varcolor3.15$l <- paste0(input$subscattercolor, "_s")} 
+  })
+  
+  
+  ##create the appropriate stratify_vars3.15$df 
+  observeEvent(input$subscatter1, {
+    
+    if(!input$subscattercolor %in% c("ID", "None")) {
+      stratify_vars3.15$df <- stratify_vars$df_full %>% select_("ID", input$subscattercolor) %>%
+        group_by(ID) %>%
+        summarise_at(input$subscattercolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                      ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup() 
+    }
+    
+    else {stratify_vars3.15$df <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)}
+    
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars3.15$df2 will update based on variable and quantile selection
+  observeEvent(input$subscatter1, ignoreInit = T, {
+    
+    stratify_vars3.15$df2 <-  
+      
+      if(input$subscattercolor %in% c("ID", "None")) {stratify_vars3.15$df}
+    
+    else {
+      if(input$subscatterradio %in% "Auto"){
+        stratify_vars3.15$df %>% 
+          mutate_at(input$subscattercolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {my_ntiles(x, input$subscatterntile)}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {factor(x, ordered = T, exclude = c(NA, "NaN"))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$subscattercolor), ~ paste0(input$subscattercolor, "_s"))
+      }
+      
+      else if (input$subscatterradio %in% "On"){
+        stratify_vars3.15$df %>% 
+          mutate_at(input$subscattercolor, ~my_ntiles(.x, input$subscatterntile)) %>%
+          rename_at(vars(input$subscattercolor), ~ paste0(input$subscattercolor, "_s"))
+        
+      }
+      
+      else if (input$subscatterradio %in% "Off"){
+        stratify_vars3.15$df %>% 
+          rename_at(vars(input$subscattercolor), ~ paste0(input$subscattercolor, "_s"))
+        
+      }
+    }
+    
+  })
+  
+  ##Select subject ordering variable 
+  output$subscatterorder <- renderUI({selectInput('subscatterorder', 'Order Subjects By:', c("Spearman Cor.", varnames3.15$df), selected = "Spearman Cor.", selectize=TRUE)})
+  
+  
+  ##Ordered list of subject ID
+  subjectorder3.15 <- reactiveValues(l=NULL, m=NULL)
+  
+  ##Set default value ordered list of subject ID
+  observeEvent(input$go, {
+    subjectorder3.15$l=as.character(stratify_vars$df_sub[["ID"]])
+  })
+  
+  
+  
+  ##Ordering vars dataset, upon action button, stratify_vars3.15$df3 will update based on variable, ordered vector of subjectIDs will be created
+  observeEvent(input$subscatter1, {
+    stratify_vars3.15$df3 <-  
+      
+      if(input$subscatterorder %in% "Spearman Cor.") {
+        stratify_vars$df_full %>%
+          select_("ID", input$subscatter_y_var, input$subscatter_x_var) %>%
+          mutate_at(c(input$subscatter_y_var, input$subscatter_x_var), ~as.numeric(.x)) %>%
+          group_by(ID) %>%
+          dplyr::summarise(spear = list(myspearman((!!sym(input$subscatter_y_var)), (!!sym(input$subscatter_x_var))))) %>%
+          group_by(ID) %>%
+          mutate(rho = round(as.numeric(unlist(spear)[[3]]), 4),
+                 pval = round(as.numeric(unlist(spear)[[2]]), 4)) %>%
+          select(-spear) %>%
+          arrange(desc(rho)) %>%
+          mutate(ID_val = paste0(ID, " | ", "rho=", ordershow(rho)))
+        
+      }
+    
+    else if (!input$subscatterorder %in% "ID"){
+      stratify_vars$df_full %>% 
+        group_by(ID) %>%
+        summarise_at(input$subscatterorder, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                      ifelse(is.numeric(x), mean(x, na.rm = T), "Error"))
+        return(y)}) %>% 
+        ungroup() %>%
+        arrange_(input$subscatterorder) %>%
+        rename_at(vars(input$subscatterorder), ~ paste0(input$subscatterorder, "_o")) %>%
+        mutate(ID_val = paste0(ID, " | ", input$subscatterorder, "=", ordershow(.data[[paste0(input$subscatterorder, "_o")]])))
+    }
+    
+    else {
+      stratify_vars3.15$df3 %>% 
+        select_("ID") %>% 
+        arrange_("ID") %>%
+        mutate(ID_val = ID)
+    }
+    
+    #mutate(ID_val = paste0(ID, " Order Var: ", ordershow(.data[[paste0(input$subscatterorder, "_o")]])))
+    #mutate(ID_val = ID)
+    
+    subjectorder3.15$l <- stratify_vars3.15$df3[["ID"]]
+    subjectorder3.15$m <- stratify_vars3.15$df3[["ID_val"]]
+    
+    
+  })
+  
+  ##Page Selector
+  
+  pagenum3.15 <- reactiveValues(l=1)
+  
+  output$subscatterpage <- renderUI({selectInput('subscatterpage', 'Go To Page:', c(1:ceiling(nrow(stratify_vars$df_sub)/16)), selectize=TRUE)})
+  
+  observeEvent(input$subscatterpage, {pagenum3.15$l <- as.numeric(input$subscatterpage)})
+  
+  observeEvent(input$subscatterprev, {
+    if (pagenum3.15$l > 1) {pagenum3.15$l <- pagenum3.15$l - 1}
+  })
+  
+  observeEvent(input$subscatternext, {
+    if (pagenum3.15$l < ceiling(nrow(stratify_vars$df_sub)/16)) {pagenum3.15$l <- pagenum3.15$l + 1}
+  })
+  
+  ##Pull increments of 16 subjects based on the value of page selector, the IDs are stored as subjectorder16
+  subjectorder16_3.15 <- reactive({ 
+    #when page number is max:
+    if (pagenum3.15$l==ceiling(nrow(stratify_vars$df_sub)/16)) {subjectorder3.15$l[((as.numeric(pagenum3.15$l) - 1)*16 + 1) : length(subjectorder3.15$l)]}
+    #otherwise: ie 1-16, 17-32, and so on
+    else {subjectorder3.15$l[((pagenum3.15$l - 1)*16 + 1) : (pagenum3.15$l*16)]}
+    
+  })
+  
+  subjectorder16_3.15_val <- reactive({ 
+    #when page number is max:
+    if (pagenum3.15$l==ceiling(nrow(stratify_vars$df_sub)/16)) {subjectorder3.15$m[((as.numeric(pagenum3.15$l) - 1)*16 + 1) : length(subjectorder3.15$m)]}
+    #otherwise: ie 1-16, 17-32, and so on
+    else {subjectorder3.15$m[((pagenum3.15$l - 1)*16 + 1) : (pagenum3.15$l*16)]}
+    
+  }) 
+  
+  ##display page
+  output$pagenum3.15_display <- renderText(print(pagenum3.15$l))
+  
+  #reset page number on new plot
+  
+  observeEvent(input$subscatter1, {pagenum3.15$l <- 1})
+  
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  
+  subscattervariables <- reactiveValues(x_var = "ID", y_var = "ID", color = "None")
+  
+  #default subscatter vars
+  observeEvent(input$go, priority = -1, {
+    
+    subscattervariables$x_var <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+    subscattervariables$y_var <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+  })
+  
+  subscatterrandbutton <- reactiveValues(r1=NULL, r2=NULL, r3=NULL)
+  
+  observeEvent(input$subscatterrandom, priority = 2, ignoreInit = T, {
+    
+    subscatterrandbutton$r1 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    subscatterrandbutton$r2 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    subscatterrandbutton$r3 <- sample(1:length(varnames3.15$df), 1)
+    
+    
+    if("X-Axis Var." %in% input$subscatterrand_choice) {subscattervariables$x_var <- names(dataset_all$l)[[subscatterrandbutton$r1]]}
+    
+    if("Y-Axis Var." %in% input$subscatterrand_choice) {subscattervariables$y_var <- names(dataset_all$l)[[subscatterrandbutton$r2]]}
+    
+    if ("Color Var." %in% input$subscatterrand_choice) {subscattervariables$color <- varnames3.15$df[[subscatterrandbutton$r3]]}
+    
+    
+  })
+  
+  
+  ##Create dataset for mean browser plot, 16 subjects per page
+  subscatterdata <- reactiveValues(l=NULL)
+  
+  observeEvent(c(input$subscatter1, pagenum3.15$l), ignoreInit = T, {
+    
+    subscatterdata$l <- 
+      
+      if (input$subscatterraw %in% "Raw" | input$subscatter_y_var %in% "ID" | input$subscatter_x_var %in% "ID" ){
+        
+        dataset_levels3.15$df %>% 
+          select_("ID", input$subscatter_x_var, input$subscatter_y_var) %>%
+          left_join(stratify_vars3.15$df2, by="ID") %>%
+          left_join(stratify_vars3.15$df3, by="ID") %>%
+          filter(ID %in% subjectorder16_3.15()) %>%
+          mutate_at("ID_val", ~factor(., levels = subjectorder16_3.15_val()))
+      }
+    
+    else if (input$subscatterraw %in% "Subject Normalized") {
+      
+      dataset_levels3.15$df %>%
+        select_("ID", input$subscatter_x_var, input$subscatter_y_var) %>%
+        group_by_("ID") %>%
+        mutate_at(c(input$subscatter_y_var, input$subscatter_x_var), funs(normalize)) %>%
+        ungroup() %>%
+        left_join(stratify_vars3.15$df2, by="ID") %>%
+        left_join(stratify_vars3.15$df3, by="ID") %>%
+        filter(ID %in% subjectorder16_3.15()) %>%
+        mutate_at("ID_val", ~factor(., levels = subjectorder16_3.15_val()))
+      
+    }
+    
+  })
+  
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  subscatterplot_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$subscatter1, ignoreInit = T, {
+    if (subscatterplot_dummy$l==0) {subscatterplot_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    subscatterplot_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$subscatterplot_instr <-  renderText(
+    if(subscatterplot_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  ##Subject scatter plot, view 16 subject level associations at once  
+  
+  output$subscatterplot <- renderPlot({
+    
+    input$subscatter1
+    pagenum3.15$l
+    input$go
+    
+    isolate(
+      
+      if(subscatterplot_dummy$l==0) NULL
+      
+      else{
+        
+        if (varcolor3.15$l %in% "None") {
+        
+            
+            ggplot(data = subscatterdata$l, aes_string(x = input$subscatter_x_var, y = input$subscatter_y_var)) + 
+              geom_jitter(size = 2, width = 0.1, alpha = 0.7) +
+              geom_smooth(method='lm', formula=y~x)+
+              facet_wrap(~ID_val, nrow=4) +
+              theme_bw(base_size = 18) 
+          
+        }
+        
+        else {
+        
+          if (is.numeric(subscatterdata$l[[varcolor3.15$l]]) | is.integer(subscatterdata$l[[varcolor3.15$l]])) {
+          
+            ggplot(data = subscatterdata$l, aes_string(x = input$subscatter_x_var, y = input$subscatter_y_var, color = varcolor3.15$l)) + 
+              geom_jitter(size = 2, width = 0.1, alpha = 0.7) +
+              geom_smooth(method='lm', formula=y~x)+
+              scale_color_distiller(palette = "Spectral") +
+              facet_wrap(~ID_val, nrow=4) +
+              theme_bw(base_size = 18) 
+          
+            }
+        
+          else {
+          
+            ggplot(data = subscatterdata$l, aes_string(x = input$subscatter_x_var, y = input$subscatter_y_var, color = varcolor3.15$l)) + 
+              geom_jitter(size = 2, width = 0.1, alpha = 0.7) +
+              geom_smooth(method='lm', formula=y~x)+
+              facet_wrap(~ID_val, nrow=4) +
+              theme_bw(base_size = 18) 
+          #theme(legend.position = "none")
+          }
+        }
+        
+      }
+      
+    )
+    
+  })
+  
+  
+  
+  
+  
+  
+  
+  #6j) Subject meanbrowse------------------------------------------------------------------------------------------------------------------------------
+
+  ##Select main y axis variable:
+  output$meanbrowsevar <- renderUI({selectInput('meanbrowsevar', 'Main Variable:', c(names(dataset_all$l)), selected = meanbrowsevariables$var, selectize=TRUE)})
+  
+  ##Color and order datasets
+  stratify_vars3.1 <- reactiveValues(df = NULL, df2 = NULL, df3 = NULL)
+  
+  ##Using varnames so updating stratify_vars3.1$df2 doesn't refresh subbrowsecolor
+  varnames3.1 <- reactiveValues(df=NULL)
+  
+  ##Default datasets
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars3.1$df <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_s=1)
+    stratify_vars3.1$df2 <- stratify_vars3.1$df
+    stratify_vars3.1$df3 <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_o=1)
+    
+    varnames3.1$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  ##Select coloring variable (subject level, can bin into quantiles)
+  output$meanbrowsecolor <- renderUI({selectInput('meanbrowsecolor', 'Color By:', varnames3.1$df, selected = meanbrowsevariables$color, selectize=TRUE)})
+  
+  ###varcolor3.1$l is used so selecting color input doesn't automatically update plot
+  varcolor3.1 <- reactiveValues(l="ID")
+  
+  observeEvent(input$meanbrowse1, {if (input$meanbrowsecolor %in% "ID") {varcolor3.1$l <- input$meanbrowsecolor}
+    else {varcolor3.1$l <- paste0(input$meanbrowsecolor, "_s")} 
+  })
+  
+  
+  ##create the appropriate stratify_vars3.1$df 
+  observeEvent(input$meanbrowse1, {
+        
+     if(!input$meanbrowsecolor %in% "ID") {
+        stratify_vars3.1$df <- stratify_vars$df_full %>% select_("ID", input$meanbrowsecolor) %>%
+          group_by(ID) %>%
+          summarise_at(input$meanbrowsecolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                       ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup() 
+     }
+    
+     else {stratify_vars3.1$df <- stratify_vars$df_sub %>% select_("ID") %>% mutate(dummy_s = 1)}
+    
+  })
+    
+  ##Color vars dataset, upon action button, stratify_vars3.1$df2 will update based on variable and quantile selection
+  observeEvent(input$meanbrowse1, ignoreInit = T, {
+    
+    stratify_vars3.1$df2 <-  
+      
+    if(input$meanbrowsecolor %in% "ID") {stratify_vars3.1$df}
+    
+    else {
+      if(input$meanbrowseradio %in% "Auto"){
+        stratify_vars3.1$df %>% 
+          mutate_at(input$meanbrowsecolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {my_ntiles(x, input$meanbrowsentile)}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {factor(x, ordered = T, exclude = c(NA, "NaN"))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$meanbrowsecolor), ~ paste0(input$meanbrowsecolor, "_s"))
+      }
+      
+      else if (input$meanbrowseradio %in% "On"){
+        stratify_vars3.1$df %>% 
+          mutate_at(input$meanbrowsecolor, ~my_ntiles(.x, input$meanbrowsentile)) %>%
+          rename_at(vars(input$meanbrowsecolor), ~ paste0(input$meanbrowsecolor, "_s"))
+        
+      }
+      
+      else if (input$meanbrowseradio %in% "Off"){
+        stratify_vars3.1$df %>% 
+          rename_at(vars(input$meanbrowsecolor), ~ paste0(input$meanbrowsecolor, "_s"))
+        
+      }
+    }
+    
+  })
+  
+  ##Select subject ordering variable 
+  output$meanbrowseorder <- renderUI({selectInput('meanbrowseorder', 'Order Subjects By:', varnames3.1$df, selected = meanbrowsevariables$order, selectize=TRUE)})
+
+  
+  ##Ordered list of subject ID
+  subjectorder3.1 <- reactiveValues(l=NULL, m=NULL)
+  
+  ##Set default value ordered list of subject ID
+  observeEvent(input$go, {
+    subjectorder3.1$l=as.character(stratify_vars$df_sub[["ID"]])
+  })
+  
+  
+  
+  ##Ordering vars dataset, upon action button, stratify_vars3.1$df3 will update based on variable, ordered vector of subjectIDs will be created
+  observeEvent(input$meanbrowse1, {
+    stratify_vars3.1$df3 <-  
+      if (!input$meanbrowseorder %in% "ID"){
+        stratify_vars$df_full %>% 
+          group_by(ID) %>%
+          summarise_at(input$meanbrowseorder, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                       ifelse(is.numeric(x), mean(x, na.rm = T), "Error"))
+          return(y)}) %>% 
+          ungroup() %>%
+          arrange_(input$meanbrowseorder) %>%
+          rename_at(vars(input$meanbrowseorder), ~ paste0(input$meanbrowseorder, "_o")) %>%
+          mutate(ID_val = paste0(ID, " | ", input$meanbrowseorder, "=", ordershow(.data[[paste0(input$meanbrowseorder, "_o")]])))
+      }
+    
+      else {
+        stratify_vars3.1$df3 %>% 
+        select(1) %>% 
+        arrange_("ID") %>%
+        mutate(ID_val = ID)
+    }
+    
+    #mutate(ID_val = paste0(ID, " Order Var: ", ordershow(.data[[paste0(input$meanbrowseorder, "_o")]])))
+    #mutate(ID_val = ID)
+    
+    subjectorder3.1$l <- stratify_vars3.1$df3[["ID"]]
+    subjectorder3.1$m <- stratify_vars3.1$df3[["ID_val"]]
+    
+    
+  })
+  
+  ##Page Selector
+  
+  pagenum3.1 <- reactiveValues(l=1)
+  
+  output$meanbrowsepage <- renderUI({selectInput('meanbrowsepage', 'Go To Page:', c(1:ceiling(nrow(stratify_vars$df_sub)/16)), selectize=TRUE)})
+  
+  observeEvent(input$meanbrowsepage, {pagenum3.1$l <- as.numeric(input$meanbrowsepage)})
+  
+  observeEvent(input$meanbrowseprev, {
+    if (pagenum3.1$l > 1) {pagenum3.1$l <- pagenum3.1$l - 1}
+  })
+  
+  observeEvent(input$meanbrowsenext, {
+    if (pagenum3.1$l < ceiling(nrow(stratify_vars$df_sub)/16)) {pagenum3.1$l <- pagenum3.1$l + 1}
+  })
+  
+  ##Pull increments of 16 subjects based on the value of page selector, the IDs are stored as subjectorder16
+  subjectorder16_3.1 <- reactive({ 
+    #when page number is max:
+    if (pagenum3.1$l==ceiling(nrow(stratify_vars$df_sub)/16)) {subjectorder3.1$l[((as.numeric(pagenum3.1$l) - 1)*16 + 1) : length(subjectorder3.1$l)]}
+    #otherwise: ie 1-16, 17-32, and so on
+    else {subjectorder3.1$l[((pagenum3.1$l - 1)*16 + 1) : (pagenum3.1$l*16)]}
+    
+  })
+  
+  subjectorder16_3.1_val <- reactive({ 
+    #when page number is max:
+    if (pagenum3.1$l==ceiling(nrow(stratify_vars$df_sub)/16)) {subjectorder3.1$m[((as.numeric(pagenum3.1$l) - 1)*16 + 1) : length(subjectorder3.1$m)]}
+    #otherwise: ie 1-16, 17-32, and so on
+    else {subjectorder3.1$m[((pagenum3.1$l - 1)*16 + 1) : (pagenum3.1$l*16)]}
+    
+  }) 
+  
+  ##display page
+  output$pagenum3.1_display <- renderText(print(pagenum3.1$l))
+  
+  #reset page number on new plot
+  
+  observeEvent(input$meanbrowse1, {pagenum3.1$l <- 1})
+  
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  #subbrowserandomcheck <- reactiveValues(l=0, m=0)
+  
+  
+  meanbrowsevariables <- reactiveValues(var = "ID", color = "ID", order = "ID")
+  
+  #Default random var
+  observeEvent(input$go, priority = -1, {
+    
+    meanbrowsevariables$var <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+  })
+  
+  meanbrowserandbutton <- reactiveValues(r1=NULL, r2=NULL, r3=NULL)
+  
+  observeEvent(input$meanbrowserandom, priority = 2, ignoreInit = T, {
+    
+    meanbrowserandbutton$r1 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    meanbrowserandbutton$r2 <- sample(1:length(varnames3.1$df), 1)
+    
+    meanbrowserandbutton$r3 <- sample(1:length(varnames3.1$df), 1)
+    
+    
+    if("Main Var." %in% input$meanbrowserand_choice) {meanbrowsevariables$var <- names(dataset_all$l)[[meanbrowserandbutton$r1]]}
+    
+    if("Color Var." %in% input$meanbrowserand_choice) {meanbrowsevariables$color <- varnames3.1$df[[meanbrowserandbutton$r2]]}
+    
+    if ("Order Var." %in% input$meanbrowserand_choice) {meanbrowsevariables$order <- varnames3.1$df[[meanbrowserandbutton$r3]]}
+    
+    
+  })
+  
+  
+  ##Create dataset for mean browser plot, 16 subjects per page
+  meanbrowsedata <- reactiveValues(l=NULL)
+  
+  observeEvent( c(input$meanbrowse1, pagenum3.1$l), ignoreInit = T, {
+    
+    meanbrowsedata$l <- 
+    
+    if (input$meanbrowseraw %in% "Raw" | input$meanbrowsevar %in% "ID") {
+      
+      dataset_all$l %>% 
+        select_("ID", "timepoint", "weekday_n", input$meanbrowsevar) %>%
+        left_join(stratify_vars3.1$df2, by="ID") %>%
+        left_join(stratify_vars3.1$df3, by="ID") %>%
+        filter(ID %in% subjectorder16_3.1()) %>%
+        mutate_at("ID_val", ~factor(., levels = subjectorder16_3.1_val()))
+    }
+    
+    else if (input$meanbrowseraw %in% "Subject Normalized") {
+      
+      dataset_all$l %>% 
+        select_("ID", "timepoint", "weekday_n", input$meanbrowsevar) %>%
+        group_by_("ID") %>%
+        mutate_at(input$meanbrowsevar, funs(normalize)) %>%
+        ungroup() %>%
+        left_join(stratify_vars3.1$df2, by="ID") %>%
+        left_join(stratify_vars3.1$df3, by="ID") %>%
+        filter(ID %in% subjectorder16_3.1()) %>%
+        mutate_at("ID_val", ~factor(., levels = subjectorder16_3.1_val()))
+      
+    }
+    
+  })
+  
+  
+
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  meanbrowseplot_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$meanbrowse1, ignoreInit = T, {
+    if (meanbrowseplot_dummy$l==0) {meanbrowseplot_dummy$l <- 1}
+    else NULL
+  })
+  
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    meanbrowseplot_dummy$l <- 0
+    
+  })
+  
+  ##Instructions that appear before create plot button is clicked
+  
+  output$meanbrowseplot_instr <-  renderText(
+    if(meanbrowseplot_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  ##Subject Browser plot, view 16 subject level trends at once  
+  
+  output$meanbrowseplot <- renderPlot({
+    
+    input$meanbrowse1
+    pagenum3.1$l
+    input$go
+    
+    isolate(
+    
+    if(meanbrowseplot_dummy$l==0) NULL
+    
+    else{
+          
+          if (is.numeric(meanbrowsedata$l[[varcolor3.1$l]]) | is.integer(meanbrowsedata$l[[varcolor3.1$l]])) {
+            
+            ggplot(data = meanbrowsedata$l, aes_string(x = input$meanbrowseaxis , y = input$meanbrowsevar, color = varcolor3.1$l)) + 
+              stat_summary(fun.y = mean, geom = "line", size = 1.5) +
+              stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult=1), size = 1)+
+              scale_color_distiller(palette = "Spectral") +
+              facet_wrap(~ID_val, nrow=4) +
+              theme_bw(base_size = 18) 
+            
+          }
+          
+          else {
+
+            ggplot(data = meanbrowsedata$l, aes_string(x = input$meanbrowseaxis , y = input$meanbrowsevar, color = varcolor3.1$l)) + 
+              stat_summary(fun.y = mean, geom = "line", size = 1.5) +
+              stat_summary(fun.data = mean_cl_normal, geom = "pointrange", fun.args = list(mult=1), size = 1)+
+              facet_wrap(~ID_val, nrow=4) +
+              theme_bw(base_size = 18) 
+           #theme(legend.position = "none")
+          }
+        
+    }
+    
+    )
+    
+  })
+  
+  
+  
+  #6k) Subject trajectory------------------------------------------------------------------------------------------------------------------------------
+  
+  ##Select main y axis variable:
+  output$subbrowsevar <- renderUI({selectInput('subbrowsevar', 'Main Variable:', c(names(dataset_all$l)), selected = subbrowsevariables$var, selectize=TRUE)})
+  
+  ##Color and order datasets:
+  stratify_vars3.2 <- reactiveValues(df = NULL, df2 = NULL, df3 = NULL)
+  
+  ##Default datasets for color and order
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars3.2$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s = 1)
+    stratify_vars3.2$df2 <- stratify_vars$df_full %>% select_("ID", "weekday") %>% rename(weekday_s = weekday)
+    stratify_vars3.2$df3 <- stratify_vars$df_sub %>% select("ID") %>% mutate(dummy_o=1)
+    
+    varnames3.2$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  
+  ##create main dataset with the appropriate level
+  dataset_levels <- reactiveValues(df = NULL)
+  
+  observeEvent({input$subbrowse1}, priority = 1, ignoreInit = T,  {
+      
+      if (input$subbrowselevel %in% "Day") {
+        
+        dataset_levels$df <- dataset_all$l %>% 
+          select_("ID", "day", input$subbrowsevar) %>% mutate(dummy=1) %>%
+          group_by(ID, day) %>%
+          summarise_all(function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                  ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup()
+        
+        
+      }
+      
+      else if (input$subbrowselevel %in% "Assessment") {
+        
+        dataset_levels$df <- dataset_all$l %>% select_("ID", "timeindex", "day", input$subbrowsevar) %>% mutate(dummy=1)
+        
+        
+        
+      }
+    })
+  
+  
+  ##Using varnames so updating stratify_vars3.2$df2 doesn't refresh subbrowsecolor
+  varnames3.2 <- reactiveValues(df=NULL)
+  
+  ##Level select for color variable, choices depend on the level of main dataset:
+  
+  output$subbrowsecolorlevel <- renderUI({
+    
+    if (input$subbrowselevel %in% "Assessment") {
+      radioButtons("subbrowsecolorlevel", "Color Variable Level:", c("Subject", "Day", "Assessment"), selected = "Assessment", inline = T)
+    }
+    
+    else if (input$subbrowselevel %in% "Day") {
+      radioButtons("subbrowsecolorlevel", "Color Variable Level:", c("Subject", "Day"), selected = "Day", inline = T)
+    }
+    
+  })
+
+  
+  ##Key variable for each combination of raw/normalized and assessment/day/suject for coloring variable
+  colorvarkey3.2 <- reactive({paste0(input$subbrowsecolortype, "-", input$subbrowsecolorlevel)})
+  
+  ##create the appropriate stratify_vars3.2$df 
+  observeEvent({input$subbrowse1}, priority = 1, ignoreInit = T, {
+      
+      if(!input$subbrowsecolor %in% "ID") {
+        
+        if (colorvarkey3.2() %in% "Raw-Subject") {
+          stratify_vars3.2$df <- stratify_vars$df_full %>%
+            group_by(ID) %>%
+            summarise_at(input$subbrowsecolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+            return(y)}) %>% 
+            ungroup()
+          
+        }
+        
+        else if (colorvarkey3.2() %in% "Raw-Day") {
+          stratify_vars3.2$df <- stratify_vars$df_full %>%
+            group_by(ID, day) %>%
+            summarise_at(input$subbrowsecolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+            return(y)}) %>% 
+            ungroup() 
+          
+        }
+        
+        else if (colorvarkey3.2() %in% "Raw-Assessment") {
+          stratify_vars3.2$df <- stratify_vars$df_full %>% select_("ID", "timeindex", input$subbrowsecolor)
+        }
+        
+        else if (colorvarkey3.2() %in% "Subject Normalized-Subject") {
+          stratify_vars3.2$df <-  stratify_vars$df_full %>%
+            group_by(ID) %>%
+            summarise_at(input$subbrowsecolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+            return(y)}) %>% 
+            ungroup() 
+          
+        }
+        
+        else if (colorvarkey3.2() %in% "Subject Normalized-Day") {
+          stratify_vars3.2$df <- stratify_vars$df_full %>%
+            group_by(ID, day) %>%
+            summarise_at(input$subbrowsecolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+            return(y)}) %>% 
+            ungroup() %>% group_by(ID) %>%
+            mutate_at(input$subbrowsecolor, funs(normalize)) %>%
+            ungroup()
+        }
+        
+        else if (colorvarkey3.2() %in% "Subject Normalized-Assessment") {
+          stratify_vars3.2$df <- stratify_vars$df_full %>% select_("ID", "timeindex", input$subbrowsecolor) %>%
+            group_by(ID) %>%
+            mutate_at(input$subbrowsecolor, funs(normalize)) %>%
+            ungroup()
+        }
+        
+      }
+      
+      else {
+        
+        if (colorvarkey3.2() %in% c("Raw-Assessment", "Subject Normalized-Assessment")) {
+          
+          stratify_vars3.2$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s=1)}
+        
+        else if (colorvarkey3.2() %in% c("Raw-Day", "Subject Normalized-Day")) {
+          
+          stratify_vars3.2$df <- stratify_vars$df_full %>% mutate(dummy=1) %>% group_by(ID, day) %>% summarise(dummy_s=mean(dummy))}
+        
+        else if (colorvarkey3.2() %in% c("Raw-Subject", "Subject Normalized-Subject")) {
+          
+          stratify_vars3.2$df <- stratify_vars$df_full %>% mutate(dummy=1) %>% group_by(ID) %>% summarise(dummy_s=mean(dummy))}
+        
+      }
+      
+    })
+  
+  
+  ##Select coloring variable (subject level, can bin into quantiles)
+  output$subbrowsecolor <- renderUI({selectInput('subbrowsecolor', 'Color By:', varnames3.2$df[!varnames3.2$df %in% "timeindex"], selected=subbrowsevariables$color, selectize=TRUE)})
+  
+  ###varcolor3.2$l is used so selecting color input doesn't automatically update plot
+  varcolor3.2 <- reactiveValues(l="weekday")
+  
+  observeEvent({input$subbrowsecolor}, ignoreInit = T, { if(input$subbrowsecolor %in% "ID") {varcolor3.2$l <- input$subbrowsecolor}
+      else {varcolor3.2$l <- paste0(input$subbrowsecolor, "_s")} 
+    })
+  
+  #output$test1 <- renderText(names(subbrowsedata$l))
+  
+  #output$test2 <- renderText(input$subbrowsecolor)
+  
+  ##Color variable dataset join vars, depending on level and type
+  df2_join_vars <- reactive({ if (input$subbrowsecolorlevel %in% "Subject") {c("ID")}
+    else if (input$subbrowsecolorlevel %in% "Day") {c("ID", "day")}
+    else if (input$subbrowsecolorlevel %in% "Assessment") {c("ID", "timeindex")}
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars3.2$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$subbrowse1, priority = 1, ignoreInit = T, {
+      
+      stratify_vars3.2$df2 <-  
+        
+        if(input$subbrowsecolor %in% "ID") {stratify_vars3.2$df}
+      
+      else {
+        if(input$subbrowseradio %in% "Auto"){
+          stratify_vars3.2$df %>% select_(df2_join_vars()[1], df2_join_vars()[length(df2_join_vars())], input$subbrowsecolor) %>%
+            mutate_at(input$subbrowsecolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+              else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {my_ntiles(x, input$subbrowsentile)}
+              else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {factor(x, ordered = T, exclude = c(NA, "NaN"))}
+              else {x=NA}
+            }) %>% 
+            rename_at(vars(input$subbrowsecolor), ~ paste0(input$subbrowsecolor, "_s"))
+        }
+        
+        else if (input$subbrowseradio %in% "On"){
+          stratify_vars3.2$df %>% select_(df2_join_vars()[1], df2_join_vars()[length(df2_join_vars())], input$subbrowsecolor) %>%
+            mutate_at(input$subbrowsecolor, ~my_ntiles(.x, input$subbrowsentile)) %>%
+            rename_at(vars(input$subbrowsecolor), ~ paste0(input$subbrowsecolor, "_s"))
+          
+        }
+        
+        else if (input$subbrowseradio %in% "Off"){
+          stratify_vars3.2$df %>% 
+            select_(df2_join_vars()[1], df2_join_vars()[length(df2_join_vars())], input$subbrowsecolor) %>%
+            rename_at(vars(input$subbrowsecolor), ~ paste0(input$subbrowsecolor, "_s"))
+          
+        }
+      }
+      
+      
+    })
+  
+  ##Select subject ordering variable 
+  output$subbrowseorder <- renderUI({selectInput('subbrowseorder', 'Order Subjects By:', varnames3.2$df, selected = subbrowsevariables$order, selectize=TRUE)})
+  
+  ##Ordered list of subject ID
+  subjectorder3.2 <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$go, {
+    subjectorder3.2$l=as.character(stratify_vars$df_sub[["ID"]])
+  })
+  
+  
+  
+  ##Ordering vars dataset, upon action button, stratify_vars3.2$df3 will update based on variable, ordered vector of subjectIDs will be created
+  observeEvent(input$subbrowse1, priority = 1, ignoreInit = T, {
+      stratify_vars3.2$df3 <-  
+        if (!input$subbrowseorder %in% "ID"){
+          stratify_vars$df_full %>% 
+            group_by(ID) %>%
+            summarise_at(input$subbrowseorder, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                         ifelse(is.numeric(x), mean(x, na.rm = T), "Error"))
+            return(y)}) %>% 
+            ungroup() %>%
+            arrange_(input$subbrowseorder) %>%
+            rename_at(vars(input$subbrowseorder), ~ paste0(input$subbrowseorder, "_o")) %>%
+            mutate(ID_val = paste0(ID, " | ", input$subbrowseorder, "=", ordershow(.data[[paste0(input$subbrowseorder, "_o")]])))
+        }
+      
+      else {
+        stratify_vars$df_sub %>% 
+          select(1) %>% 
+          arrange_("ID") %>%
+          mutate(ID_val = ID)
+      }
+      
+      
+      #mutate(ID_val = paste0(ID, " Order Var: ", ordershow(.data[[paste0(input$subbrowseorder, "_o")]])))
+      #mutate(ID_val = ID)
+      
+      subjectorder3.2$l <- stratify_vars3.2$df3[["ID"]]
+      subjectorder3.2$m <- stratify_vars3.2$df3[["ID_val"]]
+      
+      
+    })
+  
+  ##Page Selector
+  
+  pagenum3.2 <- reactiveValues(l=1)
+  
+  output$subbrowsepage <- renderUI({selectInput('subbrowsepage', 'Go To Page:', c(1:ceiling(nrow(stratify_vars$df_sub)/4)), selectize=TRUE)})
+  
+  observeEvent(input$subbrowsepage, {pagenum3.2$l <- as.numeric(input$subbrowsepage)})
+  
+  observeEvent(input$subbrowseprev, {
+    if (pagenum3.2$l > 1) {pagenum3.2$l <- pagenum3.2$l - 1}
+  }) 
+  
+  observeEvent(input$subbrowsenext, {
+    if (pagenum3.2$l < ceiling(nrow(stratify_vars$df_sub)/4)) {pagenum3.2$l <- pagenum3.2$l + 1}
+  }) 
+  
+  ##display page
+  
+  output$pagenum3.2_display <- renderText(print(pagenum3.2$l))
+  
+  
+  ##Pull increments of 16 subjects based on the value of page selector, the IDs are stored as subjectorder16
+  subjectorder16_3.2 <- reactive({ 
+    #when page number is max:
+    if (pagenum3.2$l==ceiling(nrow(stratify_vars$df_sub)/4)) {subjectorder3.2$l[((as.numeric(pagenum3.2$l) - 1)*4 + 1) : length(subjectorder3.2$l)]}
+    #otherwise: ie 1-16, 17-32, and so on
+    else {subjectorder3.2$l[((pagenum3.2$l - 1)*4 + 1) : (pagenum3.2$l*4)]}
+    
+  }) 
+  
+  subjectorder16_3.2_val <-reactive({ 
+    #when page number is max:
+    if (pagenum3.2$l==ceiling(nrow(stratify_vars$df_sub)/4)) {subjectorder3.2$m[((as.numeric(pagenum3.2$l) - 1)*4 + 1) : length(subjectorder3.2$m)]}
+    #otherwise: ie 1-16, 17-32, and so on
+    else {subjectorder3.2$m[((pagenum3.2$l - 1)*4 + 1) : (pagenum3.2$l*4)]}
+    
+  }) 
+  
+  #reset page number on new plot
+  
+  observeEvent(input$subbrowse1, {pagenum3.2$l <- 1})
+  
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  #subbrowserandomcheck <- reactiveValues(l=0, m=0)
+
+
+  subbrowsevariables <- reactiveValues(var = "ID", color = "weekday", order = "ID")
+  
+  #Random defaults
+  observeEvent(input$go, priority = -1, {
+    
+    subbrowsevariables$var <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+  })
+  
+  subbrowserandbutton <- reactiveValues(r1=NULL, r2=NULL, r3=NULL)
+  
+  observeEvent(input$subbrowserandom, priority = 2, ignoreInit = T, {
+    
+    subbrowserandbutton$r1 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    subbrowserandbutton$r2 <- sample(1:length(varnames3.2$df), 1)
+    
+    subbrowserandbutton$r3 <- sample(1:length(varnames3.2$df), 1)
+    
+    
+    if("Main Var." %in% input$subbrowserand_choice) {subbrowsevariables$var <- names(dataset_all$l)[[subbrowserandbutton$r1]]}
+    
+    if("Color Var." %in% input$subbrowserand_choice) {subbrowsevariables$color <- varnames3.2$df[[subbrowserandbutton$r2]]}
+    
+    if ("Order Var." %in% input$subbrowserand_choice) {subbrowsevariables$order <- varnames3.2$df[[subbrowserandbutton$r3]]}
+    
+    
+  })
+
+
+  subbrowsedata <- reactiveValues(l=NULL)
+  
+  observeEvent( c(input$subbrowse1, pagenum3.2$l), ignoreInit = T, {
+  
+   subbrowsedata$l <- 
+      
+      if (input$subbrowseraw %in% "Raw" | input$subbrowsevar %in% "ID") {
+        
+        dataset_levels$df %>% 
+          left_join(stratify_vars3.2$df2, by=c(df2_join_vars())) %>%
+          left_join(stratify_vars3.2$df3, by="ID") %>%
+          filter(ID %in% subjectorder16_3.2()) %>%
+          mutate_at("ID_val", ~factor(., levels = subjectorder16_3.2_val()))
+      }
+      
+      else if (input$subbrowseraw %in% "Subject Normalized") {
+        
+        dataset_levels$df %>% 
+          group_by_("ID") %>%
+          mutate_at(input$subbrowsevar, funs(normalize)) %>%
+          ungroup() %>%
+          left_join(stratify_vars3.2$df2, by=c(df2_join_vars())) %>%
+          left_join(stratify_vars3.2$df3, by="ID") %>%
+          filter(ID %in% subjectorder16_3.2()) %>%
+          mutate_at("ID_val", ~factor(., levels = subjectorder16_3.2_val()))
+        
+      }
+   
+  
+      
+    })
+   
+  
+  
+  #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+  #once the "create plot" button is clicked.
+  
+  subbrowseplot_dummy <- reactiveValues(l=0)
+  
+  observeEvent(input$subbrowse1, priority = 0, ignoreInit = T, {
+      if (subbrowseplot_dummy$l==0) {subbrowseplot_dummy$l <- 1}
+      else NULL
+    })
+  
+
+  ##Reset plot when dataset changes
+  
+  observeEvent(input$go, {
+    subbrowseplot_dummy$l <- 0
+    
+  })
+  
+  
+ 
+  ##Instructions that appear before create plot button is clicked
+  
+  output$subbrowseplot_instr <-  renderText(
+    if(subbrowseplot_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+    else NULL 
+  )
+  
+  
+  ##Subject browser plot 
+  
+  
+  output$subbrowseplot <- renderPlot({
+    
+    input$subbrowse1
+    pagenum3.2$l
+    input$go
+    
+    isolate(
+      
+    
+    if(subbrowseplot_dummy$l==0) NULL
+    
+    else{
+      
+      
+        
+        if(input$subbrowselevel %in% "Assessment")  {
+          
+          
+          if (is.numeric(subbrowsedata$l[[varcolor3.2$l]]) | is.integer(subbrowsedata$l[[varcolor3.2$l]])) {
+            
+            ggplot(data = subbrowsedata$l, aes_string(x = "timeindex", y = input$subbrowsevar, group = "day")) +       
+              geom_line(size = 1.2, color = "grey")+
+              geom_point(size = 3.5, aes_string(color = varcolor3.2$l))+
+              scale_color_distiller(palette = "Spectral") +
+              facet_wrap(~ID_val, nrow = 4) + 
+              theme_bw(base_size = 18) +
+              scale_x_continuous(breaks = seq(1, max(dataset_all$l$timeindex), by=max(dataset_all$l$timepoint)))
+            
+          }
+          
+          else {
+            
+            ggplot(data = subbrowsedata$l, aes_string(x = "timeindex", y = input$subbrowsevar, group = "day")) +       
+              geom_line(size = 1.2, color = "grey")+
+              geom_point(size = 3.5, aes_string(color = varcolor3.2$l))+
+              facet_wrap(~ID_val, nrow = 4) + 
+              theme_bw(base_size = 18) +
+              scale_x_continuous(breaks = seq(1, max(dataset_all$l$timeindex), by=max(dataset_all$l$timepoint)))
+            
+          }
+          
+        }
+        
+        else if (input$subbrowselevel %in% "Day")  {
+          
+          
+          if (is.numeric(subbrowsedata$l[[varcolor3.2$l]]) | is.integer(subbrowsedata$l[[varcolor3.2$l]])) {
+            
+            ggplot(data = subbrowsedata$l, aes_string(x = "day", y = input$subbrowsevar, group = "ID")) +       
+              geom_line(size = 1.2, color = "grey")+
+              geom_point(size = 3.5, aes_string(color = varcolor3.2$l))+
+              scale_color_distiller(palette = "Spectral") +
+              facet_wrap(~ID_val, nrow = 4) + 
+              theme_bw(base_size = 18) +
+              scale_x_continuous(breaks = c(1:max(dataset_all$l$day)))
+            
+          }
+          
+          else {
+            
+            ggplot(data = subbrowsedata$l, aes_string(x = "day", y = input$subbrowsevar, group = "ID")) +       
+              geom_line(size = 1.2, color = "grey")+
+              geom_point(size = 3.5, aes_string(color = varcolor3.2$l))+
+              facet_wrap(~ID_val, nrow = 4) + 
+              theme_bw(base_size = 18) +
+              scale_x_continuous(breaks = c(1:max(dataset_all$l$day)))
+            
+          }
+          
+        }
+      
+    }
+    
+    )
+    
+  })
+  
+  
+  #6l) Subject compare------------------------------------------------------------------------------------------------------------------------------
+  
+  
+  #Helper table to select subjects
+  
+  helper3.3 <- reactiveValues(l=NULL, m=NULL)
+  
+  observeEvent(input$helper3.3button, ignoreInit = T, { withProgress(message = 'Loading Helper Table', {
+    
+    if(is.null(dataset_all$l)|is.null(input$subcomparevar1) |is.null(input$subcomparevar2)|is.null(stratify_vars$df_full)) {NULL}
+    
+    else {
+      
+      helper3.3$l <- helpertable2(stratify_vars$df_full, input$subcomparevar1, input$subcomparevar2)
+      
+      helper3.3$m <- paste0("Spearman Cor. for ", input$subcomparevar1, "and ", input$subcomparevar2)
+      
+    }
+    
+  })
+    
+  })
+  
+  #helper title
+  output$helper3.3title <- renderText(helper3.3$m)
+  
+  observeEvent(input$go, ignoreInit = T, {
+    
+    helper3.3$l <- NULL
+    
+    helper3.3$m <- NULL
+    
+  })
+  
+  
+  ##helpertable for histogram
+  output$table_sub_comp <- DT::renderDataTable(helper3.3$l, selection = list(selected = 1, mode = 'single'),
+                                       options = list(columnDefs = list(list(
+                                         targets = 1,
+                                         render = JS(
+                                           "function(data, type, row, meta) {",
+                                           "return type === 'display' && data.length > 12 ?",
+                                           "'<span title=\"' + data + '\">' + data.substr(0, 12) + '...</span>' : data;",
+                                           "}")
+                                       ))), callback = JS('table.page(3).draw(false);'))
+  
+  
+  
+  #change subject selection automatically on helper selection
+  
+  observeEvent(input$table_sub_comp_rows_selected, {
+    
+    subcomparevariables$subject <- helper3.3$l[["ID"]][[input$table_sub_comp_rows_selected]]
+    
+  })
+  
+  
+  
+  
+  
+  
+  ##Select variable 1
+  output$subcomparevar1 <- renderUI({selectInput('subcomparevar1', 'Top Variable:', c(names(dataset_all$l)), selected = subcomparevariables$var1, selectize=TRUE)})
+  
+  
+  ##select variable 2
+  output$subcomparevar2 <- renderUI({selectInput('subcomparevar2', 'Bottom Variable:', c(names(dataset_all$l)), selected = subcomparevariables$var2, selectize=TRUE)})
+  
+  
+  ##Color datasets:
+  stratify_vars3.3 <- reactiveValues(df = NULL, df2 = NULL)
+  
+  ##Default datasets for color and order
+  observeEvent(input$go, priority = -1, {
+    
+    stratify_vars3.3$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s = 1)
+    stratify_vars3.3$df2 <- stratify_vars$df_full %>% select_("ID", "weekday") %>% rename(weekday_s = weekday)
+    
+    varnames3.3$df <- names(stratify_vars$df_full)
+    
+    
+  })
+  
+  
+  ##create main dataset with the appropriate level
+  dataset_levels3.3 <- reactiveValues(df = NULL)
+  
+  observeEvent({input$subcompare1}, priority = 1, ignoreInit = T,  {
+    
+    if (input$subcomparelevel %in% "Day") {
+      
+      dataset_levels3.3$df <- dataset_all$l %>% 
+        select_("ID", "day", input$subcomparevar1, input$subcomparevar2) %>% mutate(dummy=1) %>%
+        group_by(ID, day) %>%
+        summarise_all(function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+        return(y)}) %>% 
+        ungroup()
+      
+      
+    }
+    
+    else if (input$subcomparelevel %in% "Assessment") {
+      
+      dataset_levels3.3$df <- dataset_all$l %>% select_("ID", "timeindex", "day", input$subcomparevar1, input$subcomparevar2) %>% mutate(dummy=1)
+      
+      
+      
+    }
+  })
+  
+  
+  ##Using varnames so updating stratify_vars3.3$df2 doesn't refresh subcomparecolor
+  varnames3.3 <- reactiveValues(df=NULL)
+  
+  ##Level select for color variable, choices depend on the level of main dataset:
+  
+  output$subcomparecolorlevel <- renderUI({
+    
+    if (input$subcomparelevel %in% "Assessment") {
+      radioButtons("subcomparecolorlevel", "Color Variable Level:", c("Day", "Assessment"), selected = "Assessment", inline = T)
+    }
+    
+    else if (input$subcomparelevel %in% "Day") {
+      radioButtons("subcomparecolorlevel", "Color Variable Level:", c("Day"), selected = "Day", inline = T)
+    }
+    
+  })
+  
+  
+  ##Key variable for each combination of raw/normalized and assessment/day/suject for coloring variable
+  colorvarkey3.3 <- reactive({paste0(input$subcomparecolortype, "-", input$subcomparecolorlevel)})
+  
+  ##create the appropriate stratify_vars3.3$df 
+  observeEvent({input$subcompare1}, priority = 1, ignoreInit = T, {
+    
+    if(!input$subcomparecolor %in% c("ID", "variable")) {
+      
+      if (colorvarkey3.3() %in% "Raw-Day") {
+        stratify_vars3.3$df <- stratify_vars$df_full %>%
+          group_by(ID, day) %>%
+          summarise_at(input$subcomparecolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                        ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup() 
+        
+      }
+      
+      else if (colorvarkey3.3() %in% "Raw-Assessment") {
+        stratify_vars3.3$df <- stratify_vars$df_full %>% select_("ID", "timeindex", input$subcomparecolor)
+      }
+      
+      
+      else if (colorvarkey3.3() %in% "Subject Normalized-Day") {
+        stratify_vars3.3$df <- stratify_vars$df_full %>%
+          group_by(ID, day) %>%
+          summarise_at(input$subcomparecolor, function(x) { y <- ifelse(is.character(x) | is.factor(x), getmode(x),
+                                                                        ifelse(is.numeric(x), mean(x, na.rm = T), NA))
+          return(y)}) %>% 
+          ungroup() %>% group_by(ID) %>%
+          mutate_at(input$subcomparecolor, funs(normalize)) %>%
+          ungroup()
+      }
+      
+      else if (colorvarkey3.3() %in% "Subject Normalized-Assessment") {
+        stratify_vars3.3$df <- stratify_vars$df_full %>% select_("ID", "timeindex", input$subcomparecolor) %>%
+          group_by(ID) %>%
+          mutate_at(input$subcomparecolor, funs(normalize)) %>%
+          ungroup()
+      }
+      
+    }
+    
+    else {
+      
+      if (colorvarkey3.3() %in% c("Raw-Assessment", "Subject Normalized-Assessment")) {
+        
+        stratify_vars3.3$df <- stratify_vars$df_full %>% select_("ID", "timeindex") %>% mutate(dummy_s=1)}
+      
+      else if (colorvarkey3.3() %in% c("Raw-Day", "Subject Normalized-Day")) {
+        
+        stratify_vars3.3$df <- stratify_vars$df_full %>% mutate(dummy=1) %>% group_by(ID, day) %>% summarise(dummy_s=mean(dummy))}
+      
+    }
+    })
+  
+  
+  ##Select coloring variable (subject level, can bin into quantiles)
+  output$subcomparecolor <- renderUI({selectInput('subcomparecolor', 'Color By:', c("variable", varnames3.3$df[!varnames3.3$df %in% "timeindex"]), selected=subcomparevariables$color, selectize=TRUE)})
+  
+  ###varcolor3.3$l is used so selecting color input doesn't automatically update plot
+  varcolor3.3 <- reactiveValues(l="weekday")
+  
+  observeEvent({input$subcomparecolor}, ignoreInit = T, { if(input$subcomparecolor %in% c("ID", "variable")) {varcolor3.3$l <- input$subcomparecolor}
+    else {varcolor3.3$l <- paste0(input$subcomparecolor, "_s")} 
+  })
+  
+  #output$test1 <- renderText(names(subcomparedata$l))
+  
+  #output$test2 <- renderText(input$subcomparecolor)
+  
+  ##Color variable dataset join vars, depending on level and type
+  df2_join_vars3.3 <- reactive({
+    if (input$subcomparecolorlevel %in% "Day") {c("ID", "day")}
+    else if (input$subcomparecolorlevel %in% "Assessment") {c("ID", "timeindex")}
+  })
+  
+  ##Color vars dataset, upon action button, stratify_vars3.3$df2 will update based on variable and quantile selection
+  
+  observeEvent(input$subcompare1, priority = 1, ignoreInit = T, {
+    
+    stratify_vars3.3$df2 <-  
+      
+      if(input$subcomparecolor %in% c("ID", "variable")) {stratify_vars3.3$df}
+    
+    else {
+      if(input$subcompareradio %in% "Auto"){
+        stratify_vars3.3$df %>% select_(df2_join_vars3.3()[1], df2_join_vars3.3()[length(df2_join_vars3.3())], input$subcomparecolor) %>%
+          mutate_at(input$subcomparecolor, function (x) { if (is.character(x) | is.factor(x)) {x}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) > 20) {my_ntiles(x, input$subcomparentile)}
+            else if ((is.numeric(x) | is.integer(x)) & length(unique(x)) <= 20) {factor(x, ordered = T, exclude = c(NA, "NaN"))}
+            else {x=NA}
+          }) %>% 
+          rename_at(vars(input$subcomparecolor), ~ paste0(input$subcomparecolor, "_s"))
+      }
+      
+      else if (input$subcompareradio %in% "On"){
+        stratify_vars3.3$df %>% select_(df2_join_vars3.3()[1], df2_join_vars3.3()[length(df2_join_vars3.3())], input$subcomparecolor) %>%
+          mutate_at(input$subcomparecolor, ~my_ntiles(.x, input$subcomparentile)) %>%
+          rename_at(vars(input$subcomparecolor), ~ paste0(input$subcomparecolor, "_s"))
+        
+      }
+      
+      else if (input$subcompareradio %in% "Off"){
+        stratify_vars3.3$df %>% 
+          select_(df2_join_vars3.3()[1], df2_join_vars3.3()[length(df2_join_vars3.3())], input$subcomparecolor) %>%
+          rename_at(vars(input$subcomparecolor), ~ paste0(input$subcomparecolor, "_s"))
+        
+      }
+    }
+    
+    
+  })
+  
+  
+  
+  #subject selector
+  output$subcomparesubject <- renderUI({selectInput('subcomparesubject', 'Select Subject:', c(unique(dataset_all$l$ID)), selected = subcomparevariables$subject, selectize=TRUE)})
+  
+  
+  
+  
+  #Random plot
+  
+  #make plot update after new variables are selected
+  #subcomparerandomcheck <- reactiveValues(l=0, m=0)
+  
+  
+  subcomparevariables <- reactiveValues(var1 = "ID", var2 = "ID", color = "variable", subject = NULL)
+  
+  #Random defaults
+  observeEvent(input$go, priority = -1, {
+    
+    subcomparevariables$var1 <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+    subcomparevariables$var2 <- names(dataset_all$l)[[sample(1:length(names(dataset_all$l)), 1)]]
+    
+    subcomparevariables$subject <- unique(dataset_all$l$ID)[[sample(1:length(unique(dataset_all$l$ID)), 1)]]
+    
+  })
+  
+  subcomparerandbutton <- reactiveValues(r1=NULL, r2=NULL, r3=NULL)
+  
+  observeEvent(input$subcomparerandom, priority = 2, ignoreInit = T, {
+    
+    subcomparerandbutton$r1 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    subcomparerandbutton$r2 <- sample(1:length(names(dataset_all$l)), 1)
+    
+    subcomparerandbutton$r3 <- sample(1:length(varnames3.3$df), 1)
+    
+    subcomparerandbutton$r4 <- sample(1:length(unique(dataset_all$l$ID)), 1)
+    
+    
+    if("Top Var." %in% input$subcomparerand_choice) {subcomparevariables$var1 <- names(dataset_all$l)[[subcomparerandbutton$r1]]}
+    
+    if("Bottom Var." %in% input$subcomparerand_choice) {subcomparevariables$var2 <- names(dataset_all$l)[[subcomparerandbutton$r2]]}
+    
+    if ("Color Var." %in% input$subcomparerand_choice) {subcomparevariables$color <- varnames3.3$df[[subcomparerandbutton$r3]]}
+    
+    if ("Subject" %in% input$subcomparerand_choice) {subcomparevariables$order <- unique(dataset_all$l$ID)[[subcomparerandbutton$r4]]}
+    
+  })
+  
+  
+  subcomparedata <- reactiveValues(l=NULL)
+  
+  observeEvent(input$subcompare1, ignoreInit = T, {
+    
+    subcomparedata$l <- 
+      
+      if (input$subcompareraw %in% "Raw" | input$subcomparevar1 %in% "ID" |  input$subcomparevar2 %in% "ID") {
+        
+        if(input$subcomparevar1 == input$subcomparevar2) {
+          
+          dataset_levels3.3$df %>% 
+            left_join(stratify_vars3.3$df2, by=c(df2_join_vars3.3())) %>%
+            filter(ID %in% input$subcomparesubject) %>%
+            gather(input$subcomparevar1, input$subcomparevar2, key = variable, value = value) 
+        }
+        
+        else {
+          
+          dataset_levels3.3$df %>% 
+            left_join(stratify_vars3.3$df2, by=c(df2_join_vars3.3())) %>%
+            filter(ID %in% input$subcomparesubject) %>%
+            gather(input$subcomparevar1, input$subcomparevar2, key = variable, value = value) %>%
+            mutate(variable = factor(variable, levels = c(input$subcomparevar1, input$subcomparevar2)))
+        }
+      }
+    
+    else if (input$subcompareraw %in% "Subject Normalized") {
+      
+      if(input$subcomparevar1 == input$subcomparevar2) {
+        
+        dataset_levels3.3$df %>% 
+          group_by_("ID") %>%
+          mutate_at(c(input$subcomparevar1, input$subcomparevar2), funs(normalize)) %>%
+          ungroup() %>%
+          left_join(stratify_vars3.3$df2, by=c(df2_join_vars3.3())) %>%
+          filter(ID %in% input$subcomparesubject) %>%
+          gather(input$subcomparevar1, input$subcomparevar2, key = variable, value = value) 
+        
+      }
+      
+      else {
+        
+        dataset_levels3.3$df %>% 
+          group_by_("ID") %>%
+          mutate_at(c(input$subcomparevar1, input$subcomparevar2), funs(normalize)) %>%
+          ungroup() %>%
+          left_join(stratify_vars3.3$df2, by=c(df2_join_vars3.3())) %>%
+          filter(ID %in% input$subcomparesubject) %>%
+          gather(input$subcomparevar1, input$subcomparevar2, key = variable, value = value) %>%
+          mutate(variable = factor(variable, levels = c(input$subcomparevar1, input$subcomparevar2)))
+                 
+      }
+    }
+  })
+        
+        
+        
+        #dummy variable to control plot, since plot runs automatically when page is selected, will make it dependent on a reactive value that updates 
+        #once the "create plot" button is clicked.
+        
+        subcompareplot_dummy <- reactiveValues(l=0)
+        
+        observeEvent(input$subcompare1, priority = 0, ignoreInit = T, {
+          if (subcompareplot_dummy$l==0) {subcompareplot_dummy$l <- 1}
+          else NULL
+        })
+        
+        
+        ##Reset plot when dataset changes
+        
+        observeEvent(input$go, {
+          subcompareplot_dummy$l <- 0
+          
+        })
+        
+        
+        
+        ##Instructions that appear before create plot button is clicked
+        
+        output$subcompareplot_instr <-  renderText(
+          if(subcompareplot_dummy$l==0) {"Click the [Create/Update Plot] button to generate plot!"}
+          else NULL 
+        )
+        
+        
+        ##Subject browser plot 
+        
+        
+        output$subcompareplot <- renderPlotly({
+          
+          input$subcompare1
+          input$go
+          
+          
+          isolate(
+            
+            
+            if(subcompareplot_dummy$l==0) NULL
+            
+            else{
+              
+              
+              
+              if(input$subcomparelevel %in% "Assessment")  {
+                
+                
+                if (is.numeric(subcomparedata$l[[varcolor3.3$l]]) | is.integer(subcomparedata$l[[varcolor3.3$l]])) {
+                  
+                  ggplotly(ggplot(data = subcomparedata$l, aes_string(x = "timeindex", y = "value", group = "day")) +       
+                    geom_line(size = 1, color = "grey")+
+                    geom_point(size = 2, aes_string(color = varcolor3.3$l))+
+                    scale_color_distiller(palette = "Spectral") +
+                    facet_wrap(~variable, nrow = 2, scales = "free_y") + 
+                    theme_bw(base_size = 14) +
+                    scale_x_continuous(breaks = seq(1, max(dataset_all$l$timeindex), by=max(dataset_all$l$timepoint)))+
+                    ggtitle(paste0("Subject ", input$subcomparesubject))
+                    )
+                  
+                }
+                
+                else {
+                  
+                  ggplotly(ggplot(data = subcomparedata$l, aes_string(x = "timeindex", y = "value", group = "day")) +       
+                    geom_line(size = 1, color = "grey")+
+                    geom_point(size = 2, aes_string(color = varcolor3.3$l))+
+                    facet_wrap(~variable, nrow = 2, scales = "free_y") + 
+                    theme_bw(base_size = 14) +
+                    scale_x_continuous(breaks = seq(1, max(dataset_all$l$timeindex), by=max(dataset_all$l$timepoint)))+
+                    ggtitle(paste0("Subject ", input$subcomparesubject))
+                  )
+                  
+                }
+                
+              }
+              
+              else if (input$subcomparelevel %in% "Day")  {
+                
+                
+                if (is.numeric(subcomparedata$l[[varcolor3.3$l]]) | is.integer(subcomparedata$l[[varcolor3.3$l]])) {
+                  
+                  ggplotly(ggplot(data = subcomparedata$l, aes_string(x = "day", y = "value", group = "ID")) +       
+                    geom_line(size = 1, color = "grey")+
+                    geom_point(size = 2, aes_string(color = varcolor3.3$l))+
+                    scale_color_distiller(palette = "Spectral") +
+                    facet_wrap(~variable, nrow = 2, scales = "free_y") + 
+                    theme_bw(base_size = 14) +
+                    scale_x_continuous(breaks = c(1:max(dataset_all$l$day)))+
+                    ggtitle(paste0("Subject ", input$subcomparesubject))
+                  )
+                  
+                }
+                
+                else {
+                  
+                  ggplotly(ggplot(data = subcomparedata$l, aes_string(x = "day", y = "value", group = "ID")) +       
+                    geom_line(size = 1, color = "grey")+
+                    geom_point(size = 2, aes_string(color = varcolor3.3$l))+
+                    facet_wrap(~variable, nrow = 2, scales = "free_y") + 
+                    theme_bw(base_size = 14) +
+                    scale_x_continuous(breaks = c(1:max(dataset_all$l$day))) +
+                    ggtitle(paste0("Subject ", input$subcomparesubject))
+                  )
+                  
+                }
+                
+              }
+              
+            }
+            
+          )
+          
+        })
+      
+
+}
+
+
+shinyApp(ui = ui, server = server)  
+
+
+#next: add day level,fix df2 function for entire app, fix clicking buttons too fast,
+
+
+

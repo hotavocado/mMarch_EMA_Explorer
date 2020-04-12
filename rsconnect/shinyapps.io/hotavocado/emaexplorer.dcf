@@ -1,0 +1,12 @@
+name: emaexplorer
+title: emaexplorer
+username:
+account: hotavocado
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1634602
+bundleId: 2726524
+url: https://hotavocado.shinyapps.io/emaexplorer/
+when: 1578959715.22324
+asMultiple: FALSE
+asStatic: FALSE
